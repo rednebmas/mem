@@ -5,10 +5,11 @@ Usage:
     mem init <dir>              Create a new instance
     mem run <dir> [options]     Run the topics pipeline
     mem reseed <dir> [--yes]    Clear and re-seed topics DB
-    mem install-tools <dir>     Create {name}-* tool wrappers in instance dir
+    mem install <dir>           Install tools + optional scheduled runs
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,6 +23,8 @@ def cmd_init(args):
     from pipeline.mem_init import guided_init
     instance_dir = Path(args[0]).expanduser().resolve()
     guided_init(instance_dir)
+    if (instance_dir / "config.json").exists():
+        cmd_install(args)
 
 
 def cmd_run(args):
@@ -43,16 +46,19 @@ def cmd_reseed(args):
     reseed(skip_confirm=skip_confirm)
 
 
-def cmd_install_tools(args):
+def cmd_install(args):
     from pipeline import config
     instance_dir = Path(args[0]).expanduser().resolve()
     config.init(instance_dir)
 
     name = config.get_user_name().lower().split()[0]
+    mem_bin = MEM_ROOT / "bin" / "mem"
     tools_dir = MEM_ROOT / "tools"
     venv_python = MEM_ROOT / ".venv" / "bin" / "python3"
 
-    for tool in tools_dir.iterdir():
+    # --- Install tool wrappers ---
+    print("=== Installing CLI tools ===")
+    for tool in sorted(tools_dir.iterdir()):
         if tool.name.startswith(".") or tool.name == "__pycache__":
             continue
         wrapper = instance_dir / f"{name}-{tool.name}"
@@ -63,8 +69,96 @@ def cmd_install_tools(args):
         )
         wrapper.write_text(wrapper_content)
         wrapper.chmod(0o755)
-        print(f"  Created {wrapper}")
-    print(f"\nInstalled {name}-* tools to {instance_dir}/")
+        print(f"  {wrapper.name}")
+    print(f"Installed to {instance_dir}/")
+
+    # --- Scheduled runs (launchd) ---
+    label = f"com.{name}.mem-update"
+    plist_path = Path(f"~/Library/LaunchAgents/{label}.plist").expanduser()
+    existing = plist_path.exists()
+
+    if "--yes" in args or "-y" in args:
+        install_schedule = True
+    elif "--no-schedule" in args:
+        install_schedule = False
+    else:
+        default = "Y" if existing else "y"
+        prompt = f"\nSet up daily scheduled runs? [{'Y/n' if existing else 'y/N'}] "
+        answer = input(prompt).strip().lower()
+        if existing:
+            install_schedule = answer != "n"
+        else:
+            install_schedule = answer == "y"
+
+    if not install_schedule:
+        print("Skipping schedule setup.")
+        return
+
+    hour = 0
+    minute = 1
+    if existing:
+        print(f"\nUpdating existing schedule: {plist_path}")
+    else:
+        try:
+            time_input = input(f"Run daily at what time? [HH:MM, default 00:01] ").strip()
+            if time_input:
+                parts = time_input.split(":")
+                hour = int(parts[0])
+                minute = int(parts[1]) if len(parts) > 1 else 0
+        except (ValueError, IndexError):
+            print("Invalid time, using 00:01")
+
+    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>{mem_bin} run {instance_dir} 2&gt;&amp;1 | tee /tmp/mem-update.log</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>{hour}</integer>
+        <key>Minute</key>
+        <integer>{minute}</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/tmp/mem-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/mem-update.err</string>
+</dict>
+</plist>
+"""
+
+    # Unload old plist if it exists
+    if existing:
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}", str(plist_path)],
+            capture_output=True,
+        )
+
+    plist_path.write_text(plist_content)
+    # Clear quarantine xattr that can break launchd
+    subprocess.run(["xattr", "-d", "com.apple.provenance", str(plist_path)], capture_output=True)
+    subprocess.run(["xattr", "-d", "com.apple.quarantine", str(plist_path)], capture_output=True)
+
+    result = subprocess.run(
+        ["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0:
+        print(f"\n=== Schedule installed ===")
+        print(f"  Plist: {plist_path}")
+        print(f"  Runs daily at {hour:02d}:{minute:02d}")
+    else:
+        print(f"\nWarning: launchctl bootstrap failed: {result.stderr.strip()}")
+        print(f"  Plist written to {plist_path} — load manually with:")
+        print(f"  launchctl bootstrap gui/{os.getuid()} {plist_path}")
 
 
 def main():
@@ -79,7 +173,7 @@ def main():
         "init": cmd_init,
         "run": cmd_run,
         "reseed": cmd_reseed,
-        "install-tools": cmd_install_tools,
+        "install": cmd_install,
     }
 
     if command in ("-h", "--help"):

@@ -152,9 +152,7 @@ def guided_init(instance_dir: Path):
     print(f"Seeded {len(seed_topics)} topics in {db_path}")
 
     print(f"\nInstance ready at {instance_dir}")
-    print(f"\nNext steps:")
-    print(f"  mem run {instance_dir} --dry-run    # Test ingestion")
-    print(f"  mem run {instance_dir}              # Full pipeline run")
     if "email" in collectors or "calendar" in collectors:
         print(f"\nFor email/calendar, place your Google OAuth credentials at:")
         print(f"  {instance_dir / 'google_oauth.json'}")
+    print(f"\nNext: try a dry run with `mem run {instance_dir} --dry-run`")

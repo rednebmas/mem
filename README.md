@@ -20,9 +20,9 @@ Topic Hierarchies (SQLite) → MEMORY.md
 git clone <repo-url> ~/code/mem
 cd ~/code/mem
 ./setup.sh
-mem init ~/mem-personal
-mem run ~/mem-personal --dry-run   # test ingestion
-mem run ~/mem-personal             # full pipeline
+mem init ~/mem-personal              # interactive setup (includes install)
+mem run ~/mem-personal --dry-run    # test ingestion
+mem run ~/mem-personal              # full pipeline
 ```
 
 ## Concepts
@@ -78,7 +78,7 @@ Add it to `config.json`:
 
 ## CLI Tools
 
-`mem install-tools <dir>` creates `{name}-*` wrapper scripts in the instance directory:
+`mem install <dir>` creates `{name}-*` wrapper scripts in the instance directory and optionally sets up daily scheduled runs via launchd:
 
 | Tool | Description |
 |------|-------------|
@@ -90,7 +90,7 @@ Add it to `config.json`:
 | `{name}-browser_history` | Browser history |
 | `{name}-topics` | Print/export/import the topic tree |
 
-Re-run `mem install-tools <dir>` after updating mem to get the latest tool versions.
+Re-run `mem install <dir>` after updating mem to get the latest tool versions and update the schedule.
 
 ## Requirements
 
