@@ -21,7 +21,7 @@ from .topic_db import (
 )
 
 
-ROUTING_PROMPT = """You are maintaining a personal knowledge profile for {user}'s AI assistant. The goal is to deeply understand {user} — their interests, projects, relationships, habits, and life context — so the assistant can give highly personalized, relevant responses instead of generic ones.
+ROUTING_PROMPT = """You are maintaining a personal knowledge profile for {user}'s AI assistant. The goal is to deeply understand {user} — his interests, projects, relationships, habits, and life context — so the assistant can give highly personalized, relevant responses instead of generic ones.
 
 About {user}: {user_bio}
 
@@ -45,17 +45,17 @@ For each topic that has new activity, provide:
 - "note": what specifically happened (this gets logged as activity)
 - "updated_summary": a timeless 1-2 sentence description of what this topic IS — no dates, no "as of", no "currently". The system tracks recency via activity timestamps and decay scoring. Temporary or situational info (e.g., recovering from injury, shopping for X, planning a trip) should be its own subtopic so it naturally ages out.
   CRITICAL: Named entities (apps, tools, services, companies) must be their own subtopics. Parent summaries describe ONLY the category itself — never mention specific children by name. If you can name it, it's a subtopic.
-  GOOD parent: "business" → "Consulting LLC."  (children carry the details)
-  BAD parent: "business" → "Consulting LLC. Active projects include ProjectX and ProjectY."  (naming children in parent)
+  GOOD parent: "business" → "Stark Industries."  (children carry the details)
+  BAD parent: "business" → "Stark Industries. Active projects include Arc Reactor and Jarvis."  (naming children in parent)
 
 TOPIC NAMES: Use existing topic names when the activity fits. If a topic belongs under a different parent (or should become a root topic), use the "moves" field.
 
-RENAMES: Rename when a topic's name no longer fits, or when reorganizing the tree (e.g., renaming a broad topic before splitting its subtopics into separate branches).
+RENAMES: Rename when a topic's name no longer fits, or when reorganizing the tree (e.g., renaming "vehicles" → "automotive" before splitting its subtopics into separate branches).
 
 TOPIC STRUCTURE:
-- NEVER create new top-level topics. The existing root categories cover the user's life. Every new topic must be a subtopic under an existing parent. If something doesn't fit, pick the closest parent.
-- Subtopics must be genuine subcategories of the parent — not just loosely related. "kiteboarding" is a subcategory of "outdoor recreation". "entertainment" is NOT a subcategory of "music".
-- The "people" subtopic under "social" tracks relationships. Create person subtopics under "people" for individuals the user interacts with meaningfully. The summary should describe the relationship, not log individual conversations.
+- NEVER create new top-level topics. The existing root categories cover all of {user}'s life. Every new topic must be a subtopic under an existing parent. If something doesn't fit, pick the closest parent.
+- Subtopics must be genuine subcategories of the parent — not just loosely related. "surfing" is a subcategory of "outdoor-recreation". "entertainment" is NOT a subcategory of "music".
+- The "people" subtopic under "social" tracks {user}'s relationships. Create person subtopics under "people" for individuals {user} interacts with meaningfully (e.g., "people/pepper-potts"). The summary should describe the relationship, not log individual conversations.
 - Topics can be reorganized as they evolve. If a subtopic grows complex enough to warrant its own children, that's fine — the tree can be multiple levels deep.
 
 SKIP routine noise that doesn't reveal anything personal: delivery notifications, 2FA codes, parking confirmations, spam texts, generic browsing.
@@ -78,6 +78,14 @@ Output as JSON:
 }}}}
 
 Output ONLY valid JSON, no other text."""
+
+
+def _load_routing_prompt() -> str:
+    """Load routing prompt from instance override or fall back to built-in default."""
+    override_path = config.get_instance_dir() / "routing_prompt.md"
+    if override_path.exists():
+        return override_path.read_text()
+    return ROUTING_PROMPT
 
 
 def _log(label, prompt, response):
@@ -181,7 +189,8 @@ def route_all(results, activity_date=None, actions=None):
                 lines.append(f',\n  "{key}": {json.dumps(example)}')
             action_output_fields = "".join(lines)
 
-    rendered_prompt = config.render_template(ROUTING_PROMPT)
+    base_prompt = _load_routing_prompt()
+    rendered_prompt = config.render_template(base_prompt)
     prompt = rendered_prompt.format(
         topic_tree=tree_text,
         all_sources=all_text,
