@@ -1,4 +1,4 @@
-"""iMessage collector - noise-filtered item lists."""
+"""iMessage source - noise-filtered item lists."""
 
 import os, sys
 from collections import defaultdict
@@ -9,7 +9,7 @@ from utils import macos_to_datetime, datetime_to_macos
 from imessage import get_connection, extract_text_from_attributed_body
 from contacts import ContactResolver
 from .shared import IMESSAGE_REACTION_RE, format_time_range
-from .base import Collector
+from .base import Source
 
 
 def _build_group_chat_names(conn, resolver):
@@ -82,7 +82,7 @@ def _group_by_person(rows, resolver, group_names):
     return by_person
 
 
-class TextsCollector(Collector):
+class TextsSource(Source):
     name = "texts"
     description = "iMessage history grouped by person"
     platform_required = "Darwin"

@@ -1,4 +1,4 @@
-"""Claude Code conversation history collector - noise-filtered item lists."""
+"""Claude Code conversation history source - noise-filtered item lists."""
 
 import json
 import os
@@ -16,7 +16,7 @@ from claude_history import (
     get_current_project_encoded,
 )
 from .shared import format_time_range
-from .base import Collector
+from .base import Source
 from .. import config
 
 # Previews matching these are noise, not meaningful session content
@@ -115,7 +115,7 @@ def _is_trivial(preview):
     return any(t and preview.startswith(t) for t in TRIVIAL_PREVIEWS)
 
 
-class ClaudeCodeCollector(Collector):
+class ClaudeCodeSource(Source):
     name = "claude"
     description = "Claude Code conversation history"
 

@@ -1,4 +1,4 @@
-"""Phone call history collector — answered calls from macOS CallHistory DB."""
+"""Phone call history source — answered calls from macOS CallHistory DB."""
 
 import os
 import sqlite3
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 
 from contacts import ContactResolver
 from .shared import format_time_range
-from .base import Collector
+from .base import Source
 
 CALL_HISTORY_DB = os.path.expanduser(
     "~/Library/Application Support/CallHistoryDB/CallHistory.storedata"
@@ -33,7 +33,7 @@ def _format_duration(seconds):
     return f"{minutes} min"
 
 
-class CallsCollector(Collector):
+class CallsSource(Source):
     name = "calls"
     description = "Phone call history"
     platform_required = "Darwin"

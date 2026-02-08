@@ -1,10 +1,10 @@
-"""Base class for data collectors."""
+"""Base class for data sources."""
 
 import platform
 from abc import ABC, abstractmethod
 
 
-class Collector(ABC):
+class Source(ABC):
     name: str  # "browser", "texts", etc.
     description: str  # Human-readable
     platform_required: str | None = None  # "Darwin" for macOS-only, None for any

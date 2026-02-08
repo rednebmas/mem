@@ -29,9 +29,7 @@ mem run ~/mem-personal              # full pipeline
 
 **Instance directory** — A folder containing your config, bio, topic database, and output. You can have multiple instances (personal, work, etc.) with different configurations.
 
-**Collectors** — Built-in data source adapters (browser, texts, email, etc.). macOS-only collectors are skipped on other platforms.
-
-**Plugins** — External scripts that extend mem with custom data sources. Any executable that prints markdown to stdout.
+**Sources** — Data ingestion modules that collect your activity and output markdown. mem ships with built-in sources for macOS (browser, texts, email, calendar, calls, reminders, claude). You can add custom sources as **plugins** — any executable script that prints markdown to stdout (see [Adding a Plugin](#adding-a-plugin)).
 
 **Actions** — Optional post-processing that piggybacks on the single routing LLM call for free detection. Actions add detection prompts to the routing call and receive structured flags, then dispatch to handlers that can make their own LLM calls, hit APIs, or send notifications. See [docs/actions.md](docs/actions.md).
 
@@ -41,7 +39,7 @@ Created by `mem init`:
 
 ```
 ~/mem-personal/
-├── config.json          # Collectors, actions, LLM backend, plugins
+├── config.json          # Sources, actions, LLM backend, plugins
 ├── bio.md               # Your bio (inserted into LLM prompts)
 ├── topics.db            # SQLite topic tree + activity log
 ├── MEMORY.md            # Generated output
@@ -95,6 +93,6 @@ Re-run `mem upgrade <dir>` after adding new tools to pick up the new wrappers.
 ## Requirements
 
 - Python 3.11+
-- macOS (for iMessage, Contacts, Reminders, Call History collectors)
+- macOS (for built-in sources: iMessage, Contacts, Reminders, Call History)
 - Claude CLI or Ollama (for LLM backend)
 - Google OAuth credentials (for email/calendar)

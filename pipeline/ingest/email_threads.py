@@ -1,4 +1,4 @@
-"""Gmail collector - noise-filtered item lists."""
+"""Gmail source - noise-filtered item lists."""
 
 import json
 import sys
@@ -8,11 +8,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 
 from google_auth import get_gmail_service
 from .shared import extract_email_name, format_time_range
-from .base import Collector
+from .base import Source
 from .. import config
 
 
-class EmailCollector(Collector):
+class EmailSource(Source):
     name = "email"
     description = "Gmail sent threads and kept emails"
 

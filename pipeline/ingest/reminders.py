@@ -1,11 +1,11 @@
-"""Apple Reminders collector — one-time (non-recurring) reminders."""
+"""Apple Reminders source — one-time (non-recurring) reminders."""
 
 import os
 import sqlite3
 from datetime import datetime, timedelta
 
 from .shared import format_time_range
-from .base import Collector
+from .base import Source
 
 REMINDERS_STORE_DIR = os.path.expanduser(
     "~/Library/Group Containers/group.com.apple.reminders/Container_v1/Stores"
@@ -35,7 +35,7 @@ def _find_active_db():
     return None
 
 
-class RemindersCollector(Collector):
+class RemindersSource(Source):
     name = "reminders"
     description = "Apple Reminders (one-time, non-recurring)"
     platform_required = "Darwin"

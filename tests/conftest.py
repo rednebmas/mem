@@ -12,7 +12,7 @@ from pipeline import config
 @pytest.fixture(autouse=True)
 def instance_dir(tmp_path):
     """Create a minimal instance dir and init config for every test."""
-    cfg = {"name": "Test", "collectors": [], "plugins": [], "llm": {"backend": "claude"}}
+    cfg = {"name": "Test", "sources": [], "plugins": [], "llm": {"backend": "claude"}}
     (tmp_path / "config.json").write_text(json.dumps(cfg))
     (tmp_path / "bio.md").write_text("Test user.")
     (tmp_path / "debug").mkdir()

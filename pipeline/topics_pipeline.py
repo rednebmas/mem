@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import config
-from .ingest import collect_all, format_output, COLLECTOR_NAMES
+from .ingest import collect_all, format_output, SOURCE_NAMES
 from .topic_db import format_topic_tree, get_topic_tree, generate_topics_file
 from .topics_route import route_all
 from .actions import load_actions, dispatch
@@ -92,7 +92,7 @@ Examples:
         """,
     )
     parser.add_argument("--date", "-d", help="Date to process (YYYY-MM-DD, bypasses watermark)")
-    parser.add_argument("--source", nargs="+", choices=COLLECTOR_NAMES)
+    parser.add_argument("--source", nargs="+", choices=SOURCE_NAMES)
     parser.add_argument("--dry-run", action="store_true", help="Only run ingestion, skip LLM")
     parser.add_argument("--model", choices=["ollama", "claude"],
                         help="LLM backend (overrides config)")

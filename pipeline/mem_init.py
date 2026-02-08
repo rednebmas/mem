@@ -63,8 +63,8 @@ def guided_init(instance_dir: Path):
 
     print(f"\nTopics: {', '.join(t[0] for t in seed_topics)}")
 
-    # Choose collectors
-    print("\nAvailable collectors (macOS):")
+    # Choose sources
+    print("\nAvailable sources (macOS):")
     print("  browser    - Chrome/Safari history")
     print("  texts      - iMessage conversations")
     print("  calls      - Phone call history")
@@ -73,11 +73,11 @@ def guided_init(instance_dir: Path):
     print("  email      - Gmail threads")
     print("  reminders  - Apple Reminders")
     print()
-    collectors_input = input("Collectors to enable (comma-separated, or 'all'): ").strip()
-    if collectors_input.lower() == "all":
-        collectors = ["browser", "texts", "calls", "claude", "calendar", "email", "reminders"]
+    sources_input = input("Sources to enable (comma-separated, or 'all'): ").strip()
+    if sources_input.lower() == "all":
+        sources = ["browser", "texts", "calls", "claude", "calendar", "email", "reminders"]
     else:
-        collectors = [c.strip() for c in collectors_input.split(",") if c.strip()]
+        sources = [c.strip() for c in sources_input.split(",") if c.strip()]
 
     # Choose actions
     print("\nActions (optional post-processing that piggybacks on the routing LLM call):")
@@ -100,7 +100,7 @@ def guided_init(instance_dir: Path):
     # Write config.json
     cfg = {
         "name": name,
-        "collectors": collectors,
+        "sources": sources,
         "actions": actions,
         "plugins": [],
         "llm": {"backend": backend},
@@ -152,7 +152,7 @@ def guided_init(instance_dir: Path):
     print(f"Seeded {len(seed_topics)} topics in {db_path}")
 
     print(f"\nInstance ready at {instance_dir}")
-    if "email" in collectors or "calendar" in collectors:
+    if "email" in sources or "calendar" in sources:
         print(f"\nFor email/calendar, place your Google OAuth credentials at:")
         print(f"  {instance_dir / 'google_oauth.json'}")
     print(f"\nNext: try a dry run with `mem run {instance_dir} --dry-run`")

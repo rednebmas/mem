@@ -1,4 +1,4 @@
-"""Ingestion pipeline — class-based collector registry with external plugin support."""
+"""Ingestion pipeline — class-based source registry with external plugin support."""
 
 import importlib
 import os
@@ -7,20 +7,20 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .base import Collector
+from .base import Source
 from .. import config
 
-# Auto-discover built-in Collector subclasses from this package
+# Auto-discover built-in Source subclasses from this package
 _BUILTIN_MODULES = [
     "browser", "texts", "calls", "claude_code",
     "calendar_events", "email_threads", "reminders",
 ]
 
-_registry = {}  # name -> Collector instance
+_registry = {}  # name -> Source instance
 
 
 def _discover():
-    """Import all built-in modules and register Collector subclasses."""
+    """Import all built-in modules and register Source subclasses."""
     if _registry:
         return
     for mod_name in _BUILTIN_MODULES:
@@ -31,23 +31,23 @@ def _discover():
             continue
         for attr_name in dir(mod):
             obj = getattr(mod, attr_name)
-            if (isinstance(obj, type) and issubclass(obj, Collector)
-                    and obj is not Collector and hasattr(obj, 'name')):
+            if (isinstance(obj, type) and issubclass(obj, Source)
+                    and obj is not Source and hasattr(obj, 'name')):
                 instance = obj()
                 _registry[instance.name] = instance
 
 
-def get_collectors():
-    """Return {name: Collector} for all discovered built-in collectors."""
+def get_sources():
+    """Return {name: Source} for all discovered built-in sources."""
     _discover()
     return dict(_registry)
 
 
-# Ordered list of built-in collector names for output formatting
+# Ordered list of built-in source names for output formatting
 SOURCE_ORDER = ["browser", "texts", "calls", "claude", "calendar", "email", "reminders"]
 
-# Expose collector names for CLI choices
-COLLECTOR_NAMES = list(SOURCE_ORDER)
+# Expose source names for CLI choices
+SOURCE_NAMES = list(SOURCE_ORDER)
 
 
 def _run_external_plugins(plugins_config, since_dt, until_dt):
@@ -71,23 +71,23 @@ def _run_external_plugins(plugins_config, since_dt, until_dt):
 
 
 def collect_all(since_dt, sources=None, until_dt=None):
-    """Run all (or specified) collectors + external plugins.
+    """Run all (or specified) sources + external plugins.
 
     Returns dict mapping source name to its filtered item list string.
     """
     _discover()
-    enabled = config.get_collectors()
+    enabled = config.get_sources()
     plugins = config.get_plugins()
 
     results = {}
-    for name, collector in _registry.items():
+    for name, source in _registry.items():
         if sources and name not in sources:
             continue
         if enabled and name not in enabled:
             continue
-        if not collector.is_available():
+        if not source.is_available():
             continue
-        output = collector.collect(since_dt, until_dt=until_dt)
+        output = source.collect(since_dt, until_dt=until_dt)
         if output:
             results[name] = output
 

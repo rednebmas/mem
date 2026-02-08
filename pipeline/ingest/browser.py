@@ -1,4 +1,4 @@
-"""Browser history collector - noise-filtered item lists."""
+"""Browser history source - noise-filtered item lists."""
 
 from collections import defaultdict
 
@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 
 from browser_db import read_all, extract_search_query, get_domain
 from .shared import is_noise_entry, format_time_range
-from .base import Collector
+from .base import Source
 
 
 def _filter_and_dedupe(entries, search_urls):
@@ -50,7 +50,7 @@ def _group_by_domain(entries):
     return sorted(by_domain.items(), key=lambda x: -len(x[1]))
 
 
-class BrowserCollector(Collector):
+class BrowserSource(Source):
     name = "browser"
     description = "Browser history from Chrome and Safari"
     platform_required = "Darwin"

@@ -57,8 +57,8 @@ def get_kept_state_path() -> Path:
     return get_instance_dir() / "kept_email_ids.json"
 
 
-def get_collectors() -> list[str]:
-    return load_config().get("collectors", [])
+def get_sources() -> list[str]:
+    return load_config().get("sources", [])
 
 
 def get_plugins() -> list[dict]:
@@ -83,7 +83,7 @@ def get_seed_topics() -> list[tuple[str, str | None]]:
 
 
 def get_stopwords() -> list[str]:
-    """User-specific stopwords for Claude Code collector."""
+    """User-specific stopwords for Claude Code source."""
     cfg = load_config()
     name = cfg.get("name", "").lower()
     extra = cfg.get("stopwords", [])

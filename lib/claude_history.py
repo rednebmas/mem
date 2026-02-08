@@ -1,6 +1,6 @@
 """Claude Code conversation history utilities.
 
-Shared between the claude_code collector and the claude_history CLI tool.
+Shared between the claude_code source and the claude_history CLI tool.
 """
 
 import json

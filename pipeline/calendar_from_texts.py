@@ -18,8 +18,8 @@ from datetime import datetime, timedelta, timezone
 
 from . import config
 from .ollama_client import generate
-from .ingest.texts import TextsCollector
-from .ingest.calendar_events import CalendarCollector, _fetch_events, _format_event_time
+from .ingest.texts import TextsSource
+from .ingest.calendar_events import CalendarSource, _fetch_events, _format_event_time
 
 HOLD_PREFIX = "[HOLD] "
 HOLD_EXPIRY_DAYS = 2
@@ -157,9 +157,9 @@ def validate_and_create(person, flag_context=""):
     """Pull full conversation, validate with LLM, create/delete events."""
     print(f"\n  Processing scheduling with {person}...")
 
-    texts_collector = TextsCollector()
+    texts_source = TextsSource()
     since_dt = datetime.now() - timedelta(days=7)
-    texts_output = texts_collector.collect(since_dt)
+    texts_output = texts_source.collect(since_dt)
     if not texts_output:
         print(f"    No texts found")
         _log(f"{person}_no_texts", f"# Auto-Calendar: {person}\n\nNo texts found in last 7 days.\n")

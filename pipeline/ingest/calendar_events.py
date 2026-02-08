@@ -1,4 +1,4 @@
-"""Google Calendar collector - noise-filtered item lists."""
+"""Google Calendar source - noise-filtered item lists."""
 
 import sys
 import os
@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 
 from google_auth import get_calendar_service
 from .shared import format_time_range
-from .base import Collector
+from .base import Source
 
 GCAL_BOILERPLATE = "To see detailed information for automatically created events"
 
@@ -38,7 +38,7 @@ def _fetch_events(since_dt, until_dt=None):
     return result.get("items", [])
 
 
-class CalendarCollector(Collector):
+class CalendarSource(Source):
     name = "calendar"
     description = "Google Calendar events"
 

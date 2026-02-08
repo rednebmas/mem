@@ -16,11 +16,11 @@ Generic hierarchical topic summarizer. Ingests unstructured text, routes to topi
 | `pipeline/actions.py` | Action plugin system (piggybacks on routing LLM call) |
 | `pipeline/mem_init.py` | Interactive `mem init` setup flow |
 | `pipeline/reseed_topics.py` | Clear and re-seed topics DB |
-| `pipeline/ingest/` | Built-in macOS collectors (browser, texts, calls, claude, calendar, email, reminders) |
+| `pipeline/ingest/` | Built-in macOS sources (browser, texts, calls, claude, calendar, email, reminders) |
 | `tools/` | CLI query tools (texts, contacts, email, calendar, claude_history, browser_history, topics) |
 | `lib/` | Shared utilities (imessage, contacts, browser_db, google_auth) |
 | `actions/auto-calendar/` | Built-in action for scheduling detection |
-| `examples/` | Example collector plugins |
+| `examples/` | Example plugins |
 
 ## Running the Pipeline
 
@@ -46,7 +46,7 @@ You do NOT need to run upgrade when:
 - Pipeline code changes (`pipeline/*.py`) — picked up automatically by `mem run`
 - Routing prompt changes — picked up automatically
 - LLM backend changes in config.json — picked up automatically
-- Collector changes (`pipeline/ingest/`) — picked up automatically
+- Source changes (`pipeline/ingest/`) — picked up automatically
 
 ## Key Design Decisions
 

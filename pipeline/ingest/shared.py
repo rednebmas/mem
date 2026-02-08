@@ -1,4 +1,4 @@
-"""Shared constants and helpers for ingestion collectors."""
+"""Shared constants and helpers for ingestion sources."""
 
 import re
 from datetime import datetime
