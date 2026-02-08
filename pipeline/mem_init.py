@@ -79,6 +79,15 @@ def guided_init(instance_dir: Path):
     else:
         collectors = [c.strip() for c in collectors_input.split(",") if c.strip()]
 
+    # Choose actions
+    print("\nActions (optional post-processing that piggybacks on the routing LLM call):")
+    print("  auto-calendar  - Detect scheduling in texts, create/hold calendar events")
+    print()
+    enable_autocal = input("Enable auto-calendar? [Y/n]: ").strip().lower()
+    actions = []
+    if enable_autocal != "n":
+        actions.append("auto-calendar")
+
     # Choose LLM backend
     print("\nLLM backend:")
     print("  claude  - Claude CLI (requires 'claude' command)")
@@ -92,6 +101,7 @@ def guided_init(instance_dir: Path):
     cfg = {
         "name": name,
         "collectors": collectors,
+        "actions": actions,
         "plugins": [],
         "llm": {"backend": backend},
         "seed_topics": [

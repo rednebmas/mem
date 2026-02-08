@@ -1,17 +1,17 @@
-# mem
+# 🧠 mem
 
-A personal knowledge system that automatically discovers and tracks what you're interested in, working on, and engaged with — so your AI assistant can give deeply personalized responses instead of generic ones.
+A personal knowledge system that builds topic hierarchies from your digital life — so your AI assistant can give deeply personalized responses instead of generic ones.
 
 ## How It Works
 
-mem ingests data from your personal sources (browser history, texts, emails, calendar, etc.), routes items to a topic tree via LLM, and maintains per-topic summaries. The output is a continuously-updated `TOPICS.md` that represents your current life context.
+mem ingests data from your personal sources (browser history, texts, emails, calendar, etc.), routes items to topic hierarchies via LLM, and maintains per-topic summaries. The output is a continuously-updated `TOPICS.md` that represents your current life context.
 
 ```
 Data Sources (browser, texts, email, calendar, calls, reminders, claude)
     ↓ noise-filtered
 Topic Routing + Summarization (LLM)
     ↓
-Topic Tree (SQLite) → TOPICS.md
+Topic Hierarchies (SQLite) → TOPICS.md
 ```
 
 ## Quickstart
@@ -33,13 +33,15 @@ mem run ~/mem-personal             # full pipeline
 
 **Plugins** — External scripts that extend mem with custom data sources. Any executable that prints markdown to stdout.
 
+**Actions** — Optional post-processing that piggybacks on the single routing LLM call for free detection. Actions add detection prompts to the routing call and receive structured flags, then dispatch to handlers that can make their own LLM calls, hit APIs, or send notifications. See [docs/actions.md](docs/actions.md).
+
 ## Instance Directory
 
 Created by `mem init`:
 
 ```
 ~/mem-personal/
-├── config.json          # Collectors, LLM backend, plugins
+├── config.json          # Collectors, actions, LLM backend, plugins
 ├── bio.md               # Your bio (inserted into LLM prompts)
 ├── topics.db            # SQLite topic tree + activity log
 ├── TOPICS.md            # Generated output
@@ -68,7 +70,7 @@ Add it to `config.json`:
 ```json
 {
   "plugins": [
-    {"name": "jira", "path": "~/work/mem-plugins/jira-collector.py"}
+    {"name": "jira", "command": "~/work/mem-plugins/jira-collector.py"}
   ]
 }
 ```

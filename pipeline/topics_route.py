@@ -60,11 +60,7 @@ TOPIC STRUCTURE:
 
 SKIP routine noise that doesn't reveal anything personal: delivery notifications, 2FA codes, parking confirmations, spam texts, generic browsing.
 
-SCHEDULING DETECTION: If any text conversations contain plans to meet, appointments, or events with specific dates/times, include them in the "scheduling" field with the person's name and a brief description. This includes:
-- Confirmed plans (e.g., "dinner Thursday at 7", "see you at 6")
-- Proposed-but-unconfirmed plans (e.g., "does 6pm Monday work?", "how about Thursday?", "want to grab dinner this week?")
-- Appointment reminders (e.g., "Your appointment with Dr. Smith is Monday at 10am")
-Flag both confirmed AND proposed plans — the calendar system will determine the right action. Do NOT flag vague plans with no time reference ("let's hang soon") or obvious spam.
+{action_instructions}
 
 Output as JSON:
 {{{{"existing_topics": {{{{
@@ -78,10 +74,7 @@ Output as JSON:
   }}}},
   "moves": {{{{
     "topic name": "new parent name or null"
-  }}}},
-  "scheduling": [
-    {{{{"person": "Contact Name", "context": "brief description of the plans"}}}}
-  ]
+  }}}}{action_output_fields}
 }}}}
 
 Output ONLY valid JSON, no other text."""
@@ -152,30 +145,48 @@ def _parse_json(text):
     return json.loads(text)
 
 
-def route_all(results, activity_date=None):
+def route_all(results, activity_date=None, actions=None):
     """Route all sources in a single LLM call.
 
     Args:
         results: dict from collect_all() — {source_name: filtered_items_string}
         activity_date: datetime for when the data occurred (passed to record_activity)
+        actions: list of action dicts from actions.load_actions()
 
     Returns:
-        Tuple of (total_updates, scheduling_flags).
+        Tuple of (total_updates, full_result_dict).
     """
     topics = get_topic_tree()
     if not topics:
         print("Error: no seed topics in DB. Run 'mem reseed <dir>' first.")
-        return 0, []
+        return 0, {}
+
 
     from .ingest import format_output
     all_text = format_output(results)
     scores = compute_decay_scores()
     tree_text = format_topic_tree_for_routing(topics, scores)
 
+    # Build action prompt additions
+    action_instructions = ""
+    action_output_fields = ""
+    if actions:
+        from .actions import get_action_prompt_additions, get_action_output_fields
+        action_instructions = get_action_prompt_additions(actions)
+        output_fields = get_action_output_fields(actions)
+        if output_fields:
+            # Format as JSON snippet to insert into the schema
+            lines = []
+            for key, example in output_fields.items():
+                lines.append(f',\n  "{key}": {json.dumps(example)}')
+            action_output_fields = "".join(lines)
+
     rendered_prompt = config.render_template(ROUTING_PROMPT)
     prompt = rendered_prompt.format(
         topic_tree=tree_text,
         all_sources=all_text,
+        action_instructions=action_instructions,
+        action_output_fields=action_output_fields,
     )
     ctx = _estimate_ctx(prompt)
     print("Routing all sources...")
@@ -191,7 +202,7 @@ def route_all(results, activity_date=None):
             result = _parse_json(raw)
         except json.JSONDecodeError:
             print("  Warning: JSON parse failed after retry")
-            return 0, []
+            return 0, {}
 
     for old_name, new_name in result.get("renames", {}).items():
         rename_topic(old_name, new_name)
@@ -223,5 +234,4 @@ def route_all(results, activity_date=None):
 
     _log_topic_tree()
 
-    scheduling = result.get("scheduling", [])
-    return updated_count, scheduling
+    return updated_count, result

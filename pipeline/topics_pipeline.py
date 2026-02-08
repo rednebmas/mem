@@ -13,7 +13,7 @@ from . import config
 from .ingest import collect_all, format_output, COLLECTOR_NAMES
 from .topic_db import format_topic_tree, get_topic_tree, generate_topics_file
 from .topics_route import route_all
-from .calendar_from_texts import process_schedule_flags
+from .actions import load_actions, dispatch
 
 
 class TeeWriter:
@@ -66,11 +66,12 @@ def run_pipeline(since_dt, until_dt, sources=None, dry_run=False):
         print("\n" + format_output(results))
         return 0
 
-    total_updates, scheduling = route_all(results, activity_date=since_dt)
+    actions = load_actions()
+    total_updates, result = route_all(results, activity_date=since_dt, actions=actions)
     print(f"  {total_updates} topic updates")
 
-    if scheduling:
-        process_schedule_flags(scheduling)
+    if actions and result:
+        dispatch(actions, result)
 
     return total_updates
 

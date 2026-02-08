@@ -109,3 +109,5 @@ def notify(message: str):
         subprocess.run(cmd, input=message, text=True, timeout=30, shell=True)
     except Exception as e:
         print(f"  Notification failed: {e}")
+
+
