@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""CLI for querying browser history from Chrome and Safari."""
+
+import argparse
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+from utils import parse_since
+from browser_db import read_all, extract_search_query
+
+
+def _print_search_queries(entries, count):
+    seen = set()
+    queries = []
+    for e in entries:
+        sq = extract_search_query(e["url"])
+        if sq and sq not in seen:
+            seen.add(sq)
+            queries.append((e["timestamp"], sq))
+    for ts, q in queries[:count]:
+        print(f"[{ts.strftime('%Y-%m-%d %H:%M')}] {q}")
+
+
+def _print_entries(entries, count, show_browser):
+    for e in entries[:count]:
+        ts = e["timestamp"].strftime("%Y-%m-%d %H:%M")
+        tag = f" [{e['browser']}]" if show_browser else ""
+        title = e["title"][:80] if e["title"] else "(no title)"
+        print(f"[{ts}]{tag} {title}")
+        print(f"  {e['url'][:120]}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Query browser history from Chrome and Safari",
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("query", nargs="?", help="Search by URL or title")
+    parser.add_argument("--since", "-s", help="History since (e.g., 3d, 1w)")
+    parser.add_argument("--count", "-c", type=int, default=50)
+    parser.add_argument("--browser", "-b", choices=["chrome", "safari"])
+    parser.add_argument("--search-queries", action="store_true", help="Extract Google searches")
+    args = parser.parse_args()
+
+    entries = read_all(parse_since(args.since), browser=args.browser)
+
+    if args.query:
+        q = args.query.lower()
+        entries = [e for e in entries if q in e["url"].lower() or q in e["title"].lower()]
+
+    if args.search_queries:
+        _print_search_queries(entries, args.count)
+    else:
+        _print_entries(entries, args.count, show_browser=not args.browser)
+
+
+if __name__ == "__main__":
+    main()

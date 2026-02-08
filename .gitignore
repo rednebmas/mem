@@ -1,0 +1,9 @@
+debug/
+*.db
+.venv/
+__pycache__/
+*.pyc
+.last_run
+kept_email_ids.json
+*.db.bak-*
+.DS_Store

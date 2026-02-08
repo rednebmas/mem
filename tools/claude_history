@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Search past Claude Code conversation history."""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+from utils import parse_since
+from claude_history import (
+    CLAUDE_PROJECTS_DIR, decode_project_path, encode_project_path,
+    get_current_project_encoded, extract_content,
+)
+
+
+def list_projects():
+    if not CLAUDE_PROJECTS_DIR.exists():
+        print("No Claude projects directory found.")
+        return
+    projects = []
+    for item in CLAUDE_PROJECTS_DIR.iterdir():
+        if item.is_dir():
+            sessions = list(item.glob('*.jsonl'))
+            if sessions:
+                projects.append((decode_project_path(item.name), len(sessions), item.name))
+    if not projects:
+        print("No projects with conversation history found.")
+        return
+    projects.sort(key=lambda x: x[0])
+    print("Projects with conversation history:\n")
+    for decoded, count, encoded in projects:
+        print(f"  {decoded}")
+        print(f"    {count} session(s) | --project \"{encoded}\"")
+        print()
+
+
+def list_sessions(project_filter):
+    if not CLAUDE_PROJECTS_DIR.exists():
+        print("No Claude projects directory found.")
+        return
+    matching_dirs = [item for item in CLAUDE_PROJECTS_DIR.iterdir()
+                     if item.is_dir() and (project_filter.lower() in decode_project_path(item.name).lower()
+                                           or project_filter.lower() in item.name.lower())]
+    if not matching_dirs:
+        print(f"No projects matching '{project_filter}' found.")
+        return
+    for project_dir in matching_dirs:
+        print(f"\n=== {decode_project_path(project_dir.name)} ===\n")
+        sessions = sorted(project_dir.glob('*.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
+        for session_file in sessions[:20]:
+            mtime = datetime.fromtimestamp(session_file.stat().st_mtime)
+            preview = ""
+            try:
+                with open(session_file) as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line)
+                            if entry.get('type') == 'user' or entry.get('message', {}).get('role') == 'user':
+                                content = entry.get('message', {}).get('content', '')
+                                if isinstance(content, str):
+                                    preview = content[:60].replace('\n', ' ')
+                                elif isinstance(content, list):
+                                    for block in content:
+                                        if isinstance(block, dict) and block.get('type') == 'text':
+                                            preview = block.get('text', '')[:60].replace('\n', ' ')
+                                            break
+                                if preview:
+                                    break
+                        except json.JSONDecodeError:
+                            continue
+            except Exception:
+                pass
+            print(f"  [{mtime.strftime('%Y-%m-%d %H:%M')}] {session_file.stem[:12]}...")
+            if preview:
+                print(f'    "{preview}..."')
+            print()
+
+
+def search_conversations(query, project_filter, since_dt, count, role_filter):
+    if not CLAUDE_PROJECTS_DIR.exists():
+        print("No Claude projects directory found.")
+        return
+    current_project = get_current_project_encoded()
+    search_dirs = []
+    for item in CLAUDE_PROJECTS_DIR.iterdir():
+        if item.is_dir():
+            if project_filter:
+                decoded = decode_project_path(item.name)
+                if project_filter.lower() not in decoded.lower() and project_filter.lower() not in item.name.lower():
+                    continue
+            search_dirs.append(item)
+    if not search_dirs:
+        print(f"No projects found{' matching filter' if project_filter else ''}.")
+        return
+    results = []
+    for project_dir in search_dirs:
+        decoded_path = decode_project_path(project_dir.name)
+        is_current_project = current_project and project_dir.name == current_project
+        sessions = sorted(project_dir.glob('*.jsonl'), key=lambda p: p.stat().st_mtime, reverse=True)
+        for i, session_file in enumerate(sessions):
+            if is_current_project and i == 0:
+                continue
+            if since_dt and datetime.fromtimestamp(session_file.stat().st_mtime) < since_dt:
+                continue
+            try:
+                with open(session_file) as f:
+                    session_messages = []
+                    session_has_match = False
+                    for line in f:
+                        try:
+                            entry = json.loads(line)
+                            msg = entry.get('message', {})
+                            role = msg.get('role')
+                            content = msg.get('content')
+                            if not role or content is None:
+                                continue
+                            if role_filter and role != role_filter:
+                                continue
+                            text = extract_content(content)
+                            if query and query.lower() not in text.lower():
+                                continue
+                            if query:
+                                session_has_match = True
+                            timestamp = entry.get('timestamp')
+                            ts_dt = None
+                            if timestamp:
+                                try:
+                                    ts_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                except ValueError:
+                                    pass
+                            session_messages.append({'role': role, 'content': text, 'timestamp': ts_dt})
+                        except json.JSONDecodeError:
+                            continue
+                    if query and not session_has_match:
+                        continue
+                    if session_messages:
+                        mtime = datetime.fromtimestamp(session_file.stat().st_mtime)
+                        results.append({'project': decoded_path, 'session_id': session_file.stem,
+                                       'mtime': mtime, 'messages': session_messages[:10] if query else session_messages[:5]})
+            except Exception:
+                continue
+    if not results:
+        print("No matching conversations found.")
+        return
+    results.sort(key=lambda x: x['mtime'], reverse=True)
+    results = results[:count]
+    by_project = {}
+    for r in results:
+        by_project.setdefault(r['project'], []).append(r)
+    for proj, sessions in by_project.items():
+        print(f"\n=== Project: {proj} ({len(sessions)} session(s)) ===\n")
+        for session in sessions:
+            print(f"[{session['mtime'].strftime('%Y-%m-%d %H:%M')}] Session: {session['session_id'][:12]}...")
+            for msg in session['messages']:
+                content = ' '.join(msg['content'][:200].split())
+                if query:
+                    import re
+                    content = re.compile(re.escape(query), re.IGNORECASE).sub(lambda m: f"**{m.group()}**", content)
+                print(f"  {msg['role']}: {content}")
+            print()
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Search past Claude Code conversation history')
+    parser.add_argument('query', nargs='?', help='Search term')
+    parser.add_argument('--project', '-p')
+    parser.add_argument('--since', '-s')
+    parser.add_argument('--count', '-c', type=int, default=20)
+    parser.add_argument('--role', '-r', choices=['user', 'assistant'])
+    parser.add_argument('--list', '-l', action='store_true')
+    parser.add_argument('--sessions', metavar='PROJECT')
+    args = parser.parse_args()
+
+    if args.list:
+        list_projects()
+        return
+    if args.sessions:
+        list_sessions(args.sessions)
+        return
+    search_conversations(args.query, args.project, parse_since(args.since), args.count, args.role)
+
+
+if __name__ == '__main__':
+    main()

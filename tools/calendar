@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Query and manage Google Calendar events."""
+
+import argparse
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+import re
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+from utils import parse_since
+from google_auth import get_calendar_service
+
+
+def parse_datetime(dt_str):
+    dt_str = dt_str.strip()
+    for fmt in ['%Y-%m-%d %H:%M', '%Y-%m-%d %I:%M%p', '%Y-%m-%d %I%p']:
+        try:
+            return datetime.strptime(dt_str, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.strptime(dt_str, '%Y-%m-%d')
+    except ValueError:
+        pass
+    raise ValueError(f"Could not parse datetime: {dt_str}")
+
+
+def parse_duration(dur_str):
+    if not dur_str:
+        return timedelta(hours=1)
+    hours = 0
+    minutes = 0
+    h_match = re.search(r'(\d+)h', dur_str)
+    m_match = re.search(r'(\d+)m', dur_str)
+    if h_match:
+        hours = int(h_match.group(1))
+    if m_match:
+        minutes = int(m_match.group(1))
+    if hours == 0 and minutes == 0:
+        try:
+            minutes = int(dur_str)
+        except ValueError:
+            return timedelta(hours=1)
+    return timedelta(hours=hours, minutes=minutes)
+
+
+def list_events(service, days=7, past=0, count=50):
+    now = datetime.now(timezone.utc)
+    time_min = (now - timedelta(days=past)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    time_max = (now + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        events_result = service.events().list(calendarId='primary', timeMin=time_min, timeMax=time_max, maxResults=count, singleEvents=True, orderBy='startTime').execute()
+    except Exception as e:
+        print(f"Error fetching calendar: {e}", file=sys.stderr)
+        sys.exit(1)
+    events = events_result.get('items', [])
+    if not events:
+        print('No events found.')
+        return
+    current_date = None
+    for event in events:
+        start = event['start'].get('dateTime', event['start'].get('date'))
+        if 'T' in start:
+            dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            event_date = dt.strftime('%Y-%m-%d')
+            event_time = dt.strftime('%H:%M')
+        else:
+            event_date = start
+            event_time = 'all-day'
+        if event_date != current_date:
+            if current_date is not None:
+                print()
+            print(f"=== {event_date} ===")
+            current_date = event_date
+        summary = event.get('summary', '(No title)')
+        location = event.get('location', '')
+        if location:
+            print(f"  {event_time}: {summary} @ {location}")
+        else:
+            print(f"  {event_time}: {summary}")
+
+
+def create_event(service, title, start_str, duration_str=None, location=None, description=None, all_day=False):
+    start_dt = parse_datetime(start_str)
+    event = {'summary': title}
+    if location:
+        event['location'] = location
+    if description:
+        event['description'] = description
+    if all_day or (start_dt.hour == 0 and start_dt.minute == 0 and not duration_str):
+        event['start'] = {'date': start_dt.strftime('%Y-%m-%d')}
+        event['end'] = {'date': (start_dt + timedelta(days=1)).strftime('%Y-%m-%d')}
+    else:
+        duration = parse_duration(duration_str)
+        end_dt = start_dt + duration
+        event['start'] = {'dateTime': start_dt.isoformat(), 'timeZone': 'America/Los_Angeles'}
+        event['end'] = {'dateTime': end_dt.isoformat(), 'timeZone': 'America/Los_Angeles'}
+    try:
+        created = service.events().insert(calendarId='primary', body=event).execute()
+        print(f"Created event: {created.get('summary')}")
+        print(f"  ID: {created['id']}")
+        print(f"  When: {created['start'].get('dateTime', created['start'].get('date'))}")
+        if location:
+            print(f"  Where: {location}")
+    except Exception as e:
+        print(f"Error creating event: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def delete_event(service, search_query, days=7):
+    now = datetime.now(timezone.utc)
+    time_min = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    time_max = (now + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        events_result = service.events().list(calendarId='primary', timeMin=time_min, timeMax=time_max, maxResults=50, singleEvents=True, orderBy='startTime', q=search_query).execute()
+    except Exception as e:
+        print(f"Error searching events: {e}", file=sys.stderr)
+        sys.exit(1)
+    events = events_result.get('items', [])
+    if not events:
+        print(f"No events found matching '{search_query}'")
+        return
+    if len(events) == 1:
+        event = events[0]
+        service.events().delete(calendarId='primary', eventId=event['id']).execute()
+        print(f"Deleted event: {event.get('summary')}")
+    else:
+        print(f"Multiple events found matching '{search_query}':")
+        for i, event in enumerate(events):
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            print(f"  {i+1}. {event.get('summary')} ({start})")
+        print("Please be more specific.")
+
+
+def patch_event(service, search_query, new_title, days=30):
+    now = datetime.now(timezone.utc)
+    time_min = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    time_max = (now + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        events_result = service.events().list(calendarId='primary', timeMin=time_min, timeMax=time_max, maxResults=50, singleEvents=True, orderBy='startTime', q=search_query).execute()
+    except Exception as e:
+        print(f"Error searching events: {e}", file=sys.stderr)
+        sys.exit(1)
+    events = events_result.get('items', [])
+    if not events:
+        print(f"No events found matching '{search_query}'")
+        return
+    if len(events) == 1:
+        event = events[0]
+        old_title = event.get('summary', '(No title)')
+        event['summary'] = new_title
+        service.events().update(calendarId='primary', eventId=event['id'], body=event).execute()
+        print(f"Patched event: '{old_title}' \u2192 '{new_title}'")
+    else:
+        print(f"Multiple events found matching '{search_query}':")
+        for i, event in enumerate(events):
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            print(f"  {i+1}. {event.get('summary')} ({start})")
+        print("Please be more specific.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Query and manage Google Calendar events',
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--days', '-d', type=int, default=7)
+    parser.add_argument('--past', '-p', type=int, default=0)
+    parser.add_argument('--count', '-c', type=int, default=50)
+    parser.add_argument('--add', '-a', metavar='TITLE')
+    parser.add_argument('--start', '-s', metavar='DATETIME')
+    parser.add_argument('--duration', metavar='DUR')
+    parser.add_argument('--location', '-l', metavar='LOC')
+    parser.add_argument('--description', metavar='DESC')
+    parser.add_argument('--all-day', action='store_true')
+    parser.add_argument('--delete', metavar='QUERY')
+    parser.add_argument('--patch', metavar='QUERY')
+    parser.add_argument('--new-title', metavar='TITLE')
+    args = parser.parse_args()
+
+    service = get_calendar_service()
+    if args.add:
+        if not args.start:
+            print("Error: --start is required when creating an event", file=sys.stderr)
+            sys.exit(1)
+        create_event(service, args.add, args.start, args.duration, args.location, args.description, args.all_day)
+    elif args.delete:
+        delete_event(service, args.delete, args.days)
+    elif args.patch:
+        if not args.new_title:
+            print("Error: --new-title is required when patching an event", file=sys.stderr)
+            sys.exit(1)
+        patch_event(service, args.patch, args.new_title, args.days)
+    else:
+        list_events(service, args.days, args.past, args.count)
+
+
+if __name__ == '__main__':
+    main()

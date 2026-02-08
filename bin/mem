@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""mem — personal knowledge system CLI.
+
+Usage:
+    mem init <dir>              Create a new instance
+    mem run <dir> [options]     Run the topics pipeline
+    mem reseed <dir> [--yes]    Clear and re-seed topics DB
+    mem install-tools <dir>     Create {name}-* CLI symlinks
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Add the mem repo root to the Python path
+MEM_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(MEM_ROOT))
+
+
+def cmd_init(args):
+    from pipeline import config
+    from pipeline.mem_init import guided_init
+    instance_dir = Path(args[0]).expanduser().resolve()
+    guided_init(instance_dir)
+
+
+def cmd_run(args):
+    from pipeline import config
+    instance_dir = Path(args[0]).expanduser().resolve()
+    config.init(instance_dir)
+
+    from pipeline.topics_pipeline import main as pipeline_main
+    pipeline_main(args[1:])
+
+
+def cmd_reseed(args):
+    from pipeline import config
+    instance_dir = Path(args[0]).expanduser().resolve()
+    config.init(instance_dir)
+
+    skip_confirm = "--yes" in args or "-y" in args
+    from pipeline.reseed_topics import reseed
+    reseed(skip_confirm=skip_confirm)
+
+
+def cmd_install_tools(args):
+    from pipeline import config
+    instance_dir = Path(args[0]).expanduser().resolve()
+    config.init(instance_dir)
+
+    name = config.get_user_name().lower().split()[0]
+    tools_dir = MEM_ROOT / "tools"
+    venv_python = MEM_ROOT / ".venv" / "bin" / "python3"
+
+    for tool in tools_dir.iterdir():
+        if tool.name.startswith(".") or tool.name == "__pycache__":
+            continue
+        symlink = Path(f"/usr/local/bin/{name}-{tool.name}")
+        # Create a wrapper script instead of a symlink
+        # so the venv python is used
+        wrapper = Path(f"/usr/local/bin/{name}-{tool.name}")
+        wrapper_content = f'#!/bin/sh\nexec "{venv_python}" "{tool}" "$@"\n'
+        try:
+            wrapper.write_text(wrapper_content)
+            wrapper.chmod(0o755)
+            print(f"  Created {wrapper}")
+        except PermissionError:
+            print(f"  Error: need sudo for /usr/local/bin — run: sudo mem install-tools {instance_dir}")
+            return
+    print(f"\nInstalled {name}-* tools to /usr/local/bin/")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    command = sys.argv[1]
+    args = sys.argv[2:]
+
+    commands = {
+        "init": cmd_init,
+        "run": cmd_run,
+        "reseed": cmd_reseed,
+        "install-tools": cmd_install_tools,
+    }
+
+    if command in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+
+    if command not in commands:
+        print(f"Unknown command: {command}")
+        print(__doc__)
+        sys.exit(1)
+
+    if not args:
+        print(f"Error: {command} requires an instance directory argument")
+        sys.exit(1)
+
+    commands[command](args)
+
+
+if __name__ == "__main__":
+    main()

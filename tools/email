@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Query and manage Gmail messages."""
+
+import argparse
+import os
+import sys
+import base64
+from datetime import datetime, timedelta
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+from utils import parse_since
+from google_auth import get_gmail_service
+
+
+def get_header(headers, name):
+    for header in headers:
+        if header['name'].lower() == name.lower():
+            return header['value']
+    return ''
+
+
+def get_body_text(payload):
+    if payload.get('body', {}).get('data'):
+        return base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+    if 'parts' in payload:
+        for part in payload['parts']:
+            if part.get('mimeType') == 'text/plain' and part.get('body', {}).get('data'):
+                return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+            if 'parts' in part:
+                text = get_body_text(part)
+                if text:
+                    return text
+    return ''
+
+
+def mark_as_read(service, message_ids):
+    service.users().messages().batchModify(userId='me', body={'ids': message_ids, 'removeLabelIds': ['UNREAD']}).execute()
+    print(f"Marked {len(message_ids)} email(s) as read.")
+
+
+def archive_messages(service, message_ids):
+    service.users().messages().batchModify(userId='me', body={'ids': message_ids, 'removeLabelIds': ['INBOX']}).execute()
+    print(f"Archived {len(message_ids)} email(s).")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Query and manage Gmail messages',
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--from', '-f', dest='sender', help='Filter by sender')
+    parser.add_argument('--count', '-c', type=int, default=20)
+    parser.add_argument('--since', '-s', help='Emails since (e.g., 3d, 1w)')
+    parser.add_argument('--unread', '-u', action='store_true')
+    parser.add_argument('--body', '-b', action='store_true', help='Include email body')
+    parser.add_argument('--mark-read', '-r', action='store_true')
+    parser.add_argument('--archive', '-a', action='store_true')
+    args = parser.parse_args()
+
+    service = get_gmail_service()
+    query_parts = []
+    if args.sender:
+        query_parts.append(f'from:{args.sender}')
+    if args.unread:
+        query_parts.append('is:unread')
+    since_dt = parse_since(args.since)
+    if since_dt:
+        query_parts.append(f'after:{since_dt.strftime("%Y/%m/%d")}')
+    query = ' '.join(query_parts) if query_parts else None
+
+    try:
+        results = service.users().messages().list(userId='me', q=query, maxResults=args.count).execute()
+    except Exception as e:
+        print(f"Error fetching emails: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    messages = results.get('messages', [])
+    if not messages:
+        print('No emails found.')
+        return
+
+    message_ids = [msg['id'] for msg in messages]
+
+    if (args.mark_read or args.archive) and not args.body:
+        for msg_ref in messages:
+            try:
+                msg = service.users().messages().get(userId='me', id=msg_ref['id'], format='metadata', metadataHeaders=['Subject', 'From']).execute()
+                headers = msg.get('payload', {}).get('headers', [])
+                print(f"  \u2022 {get_header(headers, 'From')}: {get_header(headers, 'Subject') or '(No subject)'}")
+            except:
+                continue
+        if args.mark_read:
+            mark_as_read(service, message_ids)
+        if args.archive:
+            archive_messages(service, message_ids)
+        return
+
+    for msg_ref in messages:
+        try:
+            msg = service.users().messages().get(userId='me', id=msg_ref['id'], format='full').execute()
+            headers = msg.get('payload', {}).get('headers', [])
+            subject = get_header(headers, 'Subject') or '(No subject)'
+            sender = get_header(headers, 'From')
+            date_str = get_header(headers, 'Date')
+            date_display = date_str[:22] if date_str else ''
+            labels = msg.get('labelIds', [])
+            unread_marker = '\u2022' if 'UNREAD' in labels else ' '
+            print(f"{unread_marker} [{date_display}] {sender}")
+            print(f"  Subject: {subject}")
+            if args.body:
+                body = get_body_text(msg.get('payload', {}))
+                if body:
+                    body = ' '.join(body.strip()[:500].split())
+                    print(f"  {body}...")
+            print()
+        except Exception:
+            continue
+
+    if args.mark_read:
+        mark_as_read(service, message_ids)
+    if args.archive:
+        archive_messages(service, message_ids)
+
+
+if __name__ == '__main__':
+    main()

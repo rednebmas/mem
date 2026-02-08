@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Query iMessage history.
+
+Reads from the local Messages database and outputs conversations.
+Requires Full Disk Access for Terminal/IDE.
+"""
+
+import argparse
+import sys
+import os
+from collections import defaultdict
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+
+from utils import parse_since, macos_to_datetime, datetime_to_macos
+from imessage import get_connection, extract_text_from_attributed_body
+from contacts import ContactResolver
+
+
+def get_chat_participants(cursor, chat_id, resolver):
+    cursor.execute("""
+        SELECT h.id FROM chat_handle_join chj
+        JOIN handle h ON chj.handle_id = h.ROWID WHERE chj.chat_id = ?
+    """, (chat_id,))
+    return [resolver.resolve(h).split()[0] if resolver.resolve(h) else h for (h,) in cursor.fetchall()]
+
+
+def list_contacts(cursor, resolver):
+    cursor.execute("""
+        SELECT h.id as handle, c.display_name as chat_name, c.ROWID as chat_id,
+               COUNT(*) as msg_count, MAX(m.date) as last_msg
+        FROM message m
+        LEFT JOIN handle h ON m.handle_id = h.ROWID
+        LEFT JOIN chat_message_join cmj ON m.ROWID = cmj.message_id
+        LEFT JOIN chat c ON cmj.chat_id = c.ROWID
+        WHERE h.id IS NOT NULL GROUP BY h.id ORDER BY last_msg DESC LIMIT 30
+    """)
+    print("Recent contacts:\n")
+    for handle, chat_name, chat_id, count, last_date in cursor.fetchall():
+        last_dt = macos_to_datetime(last_date)
+        display_name = chat_name if chat_name and chat_name.strip() else resolver.resolve(handle)
+        if display_name != handle and handle:
+            print(f"  {display_name} ({handle}): {count} messages (last: {last_dt.strftime('%Y-%m-%d')})")
+        else:
+            print(f"  {display_name}: {count} messages (last: {last_dt.strftime('%Y-%m-%d')})")
+
+
+def query_messages(cursor, count=50, since=None, fetch_multiplier=1):
+    query = """
+        SELECT m.text, m.is_from_me, m.date, m.attributedBody,
+               h.id as handle, c.display_name as chat_name, c.ROWID as chat_id
+        FROM message m
+        LEFT JOIN handle h ON m.handle_id = h.ROWID
+        LEFT JOIN chat_message_join cmj ON m.ROWID = cmj.message_id
+        LEFT JOIN chat c ON cmj.chat_id = c.ROWID
+        WHERE (m.text IS NOT NULL AND m.text != '') OR m.attributedBody IS NOT NULL
+    """
+    params = []
+    since_dt = parse_since(since)
+    if since_dt:
+        query += " AND m.date >= ?"
+        params.append(datetime_to_macos(since_dt))
+    query += " ORDER BY m.date DESC LIMIT ?"
+    params.append(count * fetch_multiplier)
+    cursor.execute(query, params)
+    return cursor.fetchall()
+
+
+def matches_person(person_query, handle, chat_name, chat_id, cursor, resolver, participant_cache):
+    query_lower = person_query.lower()
+    sender_name = resolver.resolve(handle) if handle else ''
+    if query_lower in sender_name.lower():
+        return True
+    if chat_name and query_lower in chat_name.lower():
+        return True
+    if chat_id:
+        if chat_id not in participant_cache:
+            participant_cache[chat_id] = get_chat_participants(cursor, chat_id, resolver)
+        for participant in participant_cache.get(chat_id, []):
+            if query_lower in participant.lower():
+                return True
+    return False
+
+
+def get_conversation_name(chat_name, chat_id, handle, cursor, resolver, participant_cache):
+    if chat_name and chat_name.strip():
+        return chat_name
+    if chat_id and chat_id not in participant_cache:
+        participant_cache[chat_id] = get_chat_participants(cursor, chat_id, resolver)
+    if chat_id and len(participant_cache.get(chat_id, [])) > 1:
+        return ", ".join(sorted(participant_cache[chat_id]))
+    return resolver.resolve(handle) if handle else 'Unknown'
+
+
+def get_sender_name(is_from_me, handle, chat_name, resolver):
+    if is_from_me:
+        return "You"
+    sender_name = resolver.resolve(handle) if handle else 'Unknown'
+    return sender_name.split()[0] if sender_name else 'Unknown'
+
+
+def print_grouped(rows, cursor, resolver, person_filter=None, max_count=None):
+    by_conversation = defaultdict(list)
+    participant_cache = {}
+    matched_count = 0
+    for text, is_from_me, date, attributed_body, handle, chat_name, chat_id in rows:
+        if person_filter and not matches_person(person_filter, handle, chat_name, chat_id, cursor, resolver, participant_cache):
+            continue
+        msg_text = text
+        if (not msg_text or msg_text.strip() == '') and attributed_body:
+            msg_text = extract_text_from_attributed_body(attributed_body)
+        if not msg_text:
+            continue
+        matched_count += 1
+        if max_count and matched_count > max_count:
+            break
+        conversation = get_conversation_name(chat_name, chat_id, handle, cursor, resolver, participant_cache)
+        sender = get_sender_name(is_from_me, handle, chat_name, resolver)
+        timestamp = macos_to_datetime(date)
+        by_conversation[conversation].append((timestamp, sender, msg_text))
+
+    for conversation, messages in sorted(by_conversation.items(), key=lambda x: max(m[0] for m in x[1]), reverse=True):
+        print(f"\n=== {conversation} ===")
+        for timestamp, sender, msg_text in sorted(messages, key=lambda x: x[0]):
+            print(f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {sender}: {msg_text}")
+
+
+def print_chronological(rows, cursor, resolver, person_filter=None, max_count=None):
+    participant_cache = {}
+    matched_count = 0
+    for text, is_from_me, date, attributed_body, handle, chat_name, chat_id in reversed(rows):
+        if person_filter and not matches_person(person_filter, handle, chat_name, chat_id, cursor, resolver, participant_cache):
+            continue
+        msg_text = text
+        if (not msg_text or msg_text.strip() == '') and attributed_body:
+            msg_text = extract_text_from_attributed_body(attributed_body)
+        if not msg_text:
+            continue
+        matched_count += 1
+        if max_count and matched_count > max_count:
+            break
+        timestamp = macos_to_datetime(date)
+        conversation = get_conversation_name(chat_name, chat_id, handle, cursor, resolver, participant_cache)
+        sender = get_sender_name(is_from_me, handle, chat_name, resolver)
+        print(f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {sender} ({conversation}): {msg_text}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Query iMessage history',
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('person', nargs='?', help='Filter by contact name (partial, case-insensitive)')
+    parser.add_argument('--count', '-c', type=int, default=None)
+    parser.add_argument('--since', '-s', help='Messages since (e.g., 3d, 1w)')
+    parser.add_argument('--list', '-l', action='store_true', help='List recent contacts')
+    parser.add_argument('--chrono', action='store_true', help='Chronological instead of grouped')
+    args = parser.parse_args()
+
+    resolver = ContactResolver()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if args.list:
+        list_contacts(cursor, resolver)
+        conn.close()
+        return
+
+    count = args.count if args.count is not None else (None if args.since else 50)
+    fetch_multiplier = 10 if args.person else 1
+    rows = query_messages(cursor, count or 100000, args.since, fetch_multiplier)
+
+    if not rows:
+        print("No messages found.")
+        conn.close()
+        return
+
+    max_count = count
+    if args.chrono:
+        print_chronological(rows, cursor, resolver, args.person, max_count)
+    else:
+        print_grouped(rows, cursor, resolver, args.person, max_count)
+    conn.close()
+
+
+if __name__ == '__main__':
+    main()

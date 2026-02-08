@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Search macOS Contacts."""
+
+import argparse
+import sys
+import os
+import sqlite3
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+
+from contacts import get_contact_databases
+
+
+def search_contacts(query):
+    results = []
+    query_lower = query.lower()
+    for db_path in get_contact_databases():
+        try:
+            conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(r.ZNICKNAME, '') as nickname,
+                       COALESCE(r.ZFIRSTNAME, '') as first,
+                       COALESCE(r.ZLASTNAME, '') as last,
+                       COALESCE(r.ZORGANIZATION, '') as org, r.Z_PK
+                FROM ZABCDRECORD r
+                WHERE LOWER(r.ZFIRSTNAME) LIKE ? OR LOWER(r.ZLASTNAME) LIKE ?
+                   OR LOWER(r.ZNICKNAME) LIKE ? OR LOWER(r.ZORGANIZATION) LIKE ?
+            """, (f'%{query_lower}%',) * 4)
+            for nickname, first, last, org, pk in cursor.fetchall():
+                cursor.execute("SELECT ZFULLNUMBER, ZLABEL FROM ZABCDPHONENUMBER WHERE ZOWNER = ?", (pk,))
+                phones = [(num, label) for num, label in cursor.fetchall() if num]
+                cursor.execute("SELECT ZADDRESSNORMALIZED, ZLABEL FROM ZABCDEMAILADDRESS WHERE ZOWNER = ?", (pk,))
+                emails = [(addr, label) for addr, label in cursor.fetchall() if addr]
+                name = nickname or (f"{first} {last}".strip()) or org
+                if name:
+                    results.append({'name': name, 'first': first, 'last': last, 'org': org, 'phones': phones, 'emails': emails})
+            conn.close()
+        except Exception:
+            continue
+    return results
+
+
+def list_all_contacts():
+    contacts = []
+    for db_path in get_contact_databases():
+        try:
+            conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(r.ZNICKNAME, '') as nickname, COALESCE(r.ZFIRSTNAME, '') as first,
+                       COALESCE(r.ZLASTNAME, '') as last, COALESCE(r.ZORGANIZATION, '') as org
+                FROM ZABCDRECORD r
+                WHERE r.ZFIRSTNAME IS NOT NULL OR r.ZLASTNAME IS NOT NULL OR r.ZORGANIZATION IS NOT NULL
+            """)
+            for nickname, first, last, org in cursor.fetchall():
+                name = nickname or (f"{first} {last}".strip()) or org
+                if name:
+                    contacts.append(name)
+            conn.close()
+        except Exception:
+            continue
+    return sorted(set(contacts))
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Search macOS Contacts')
+    parser.add_argument('query', nargs='?', help='Name to search for')
+    parser.add_argument('--list', '-l', action='store_true', help='List all contacts')
+    args = parser.parse_args()
+
+    if args.list:
+        contacts = list_all_contacts()
+        print(f"Found {len(contacts)} contacts:\n")
+        for name in contacts:
+            print(f"  {name}")
+        return
+    if not args.query:
+        parser.print_help()
+        return
+    results = search_contacts(args.query)
+    if not results:
+        print(f"No contacts found for '{args.query}'")
+        return
+    for contact in results:
+        print(f"\n{contact['name']}")
+        if contact['org'] and contact['org'] != contact['name']:
+            print(f"  Organization: {contact['org']}")
+        for phone, label in contact['phones']:
+            clean_label = label.replace('_$!<', '').replace('>!$_', '') if label else ''
+            label_str = f" ({clean_label})" if clean_label else ""
+            print(f"  Phone{label_str}: {phone}")
+        for email, label in contact['emails']:
+            clean_label = label.replace('_$!<', '').replace('>!$_', '') if label else ''
+            label_str = f" ({clean_label})" if clean_label else ""
+            print(f"  Email{label_str}: {email}")
+
+
+if __name__ == '__main__':
+    main()
