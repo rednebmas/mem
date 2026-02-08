@@ -1,9 +1,11 @@
-"""Tests for pipeline/topics_route.py — JSON parsing only (no LLM calls)."""
+"""Tests for pipeline/topics_route.py — JSON parsing and prompt generation (no LLM calls)."""
 
 import json
 import pytest
 
-from pipeline.topics_route import _parse_json
+from conftest import seed_topics
+from pipeline.topic_db import set_display_name
+from pipeline.topics_route import _parse_json, generate_routing_prompt
 
 
 class TestParseJson:
@@ -69,3 +71,50 @@ class TestParseJson:
         result = _parse_json(response)
         assert result["existing_topics"] == {}
         assert result["new_topics"] == []
+
+
+# ---------------------------------------------------------------------------
+# generate_routing_prompt
+# ---------------------------------------------------------------------------
+
+class TestGenerateRoutingPrompt:
+    def test_replaces_parent_example(self):
+        seed_topics([
+            ("business", None, "Acme Corp"),
+            ("project-a", "business", "First project"),
+            ("project-b", "business", "Second project"),
+        ])
+        path = generate_routing_prompt()
+        text = path.read_text()
+        assert '"business" → "Acme Corp."' in text
+        assert "Stark Industries" not in text
+
+    def test_replaces_person_example(self):
+        seed_topics([
+            ("social", None, "Social life"),
+            ("people", "social", None),
+            ("alice", "people", "Friend"),
+        ])
+        path = generate_routing_prompt()
+        text = path.read_text()
+        assert '"people/alice"' in text
+        assert "pepper-potts" not in text
+
+    def test_bad_example_mentions_real_children(self):
+        seed_topics([
+            ("business", None, "Acme Corp"),
+            ("alpha", "business", "First"),
+            ("beta", "business", "Second"),
+        ])
+        set_display_name("alpha", "Alpha")
+        set_display_name("beta", "Beta")
+        path = generate_routing_prompt()
+        text = path.read_text()
+        assert "Includes Alpha and Beta" in text
+
+    def test_no_topics_uses_defaults(self):
+        """With no topics at all, the original examples stay."""
+        path = generate_routing_prompt()
+        text = path.read_text()
+        assert "Stark Industries" in text
+        assert "pepper-potts" in text

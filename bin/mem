@@ -5,6 +5,7 @@ Usage:
     mem init <dir>              Create a new instance
     mem run <dir> [options]     Run the topics pipeline
     mem reseed <dir> [--yes]    Clear and re-seed topics DB
+    mem regenerate-prompt <dir> Generate routing prompt from real topic examples
     mem upgrade <dir>           Reinstall tool wrappers (e.g. after new tools added)
 """
 
@@ -44,6 +45,15 @@ def cmd_reseed(args):
     skip_confirm = "--yes" in args or "-y" in args
     from pipeline.reseed_topics import reseed
     reseed(skip_confirm=skip_confirm)
+
+
+def cmd_regenerate_prompt(args):
+    from pipeline import config
+    instance_dir = Path(args[0]).expanduser().resolve()
+    config.init(instance_dir)
+
+    from pipeline.topics_route import generate_routing_prompt
+    generate_routing_prompt()
 
 
 def cmd_upgrade(args):
@@ -173,6 +183,7 @@ def main():
         "init": cmd_init,
         "run": cmd_run,
         "reseed": cmd_reseed,
+        "regenerate-prompt": cmd_regenerate_prompt,
         "upgrade": cmd_upgrade,
     }
 

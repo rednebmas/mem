@@ -12,7 +12,7 @@ Generic hierarchical topic summarizer. Ingests unstructured text, routes to topi
 | `pipeline/topics_route.py` | LLM routing prompt, JSON parsing |
 | `pipeline/topics_context.py` | Per-topic LLM summarization |
 | `pipeline/topics_pipeline.py` | Full pipeline: ingest → route → contextualize → MEMORY.md |
-| `pipeline/ollama_client.py` | LLM client (Claude CLI default, Ollama backup) |
+| `pipeline/llm.py` | LLM client (Claude CLI with `--chrome` for MCP tools) |
 | `pipeline/actions.py` | Action plugin system (piggybacks on routing LLM call) |
 | `pipeline/mem_init.py` | Interactive `mem init` setup flow |
 | `pipeline/reseed_topics.py` | Clear and re-seed topics DB |

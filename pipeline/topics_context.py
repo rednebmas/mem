@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from . import config
-from .ollama_client import generate
+from .llm import generate
 from .topic_db import get_topic_summary, update_topic_summary
 
 CONTEXT_CTX = 8192

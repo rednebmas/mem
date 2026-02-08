@@ -94,5 +94,5 @@ Re-run `mem upgrade <dir>` after adding new tools to pick up the new wrappers.
 
 - Python 3.11+
 - macOS (for built-in sources: iMessage, Contacts, Reminders, Call History)
-- Claude CLI or Ollama (for LLM backend)
+- Claude CLI (for LLM backend)
 - Google OAuth credentials (for email/calendar)

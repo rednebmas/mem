@@ -65,9 +65,6 @@ def get_plugins() -> list[dict]:
     return load_config().get("plugins", [])
 
 
-def get_llm_backend() -> str:
-    return load_config().get("llm", {}).get("backend", "claude")
-
 
 def get_seed_topics() -> list[tuple[str, str | None]]:
     """Load seed topics from config. Returns list of (name, parent_or_None)."""

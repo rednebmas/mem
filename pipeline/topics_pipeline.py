@@ -94,17 +94,8 @@ Examples:
     parser.add_argument("--date", "-d", help="Date to process (YYYY-MM-DD, bypasses watermark)")
     parser.add_argument("--source", nargs="+", choices=SOURCE_NAMES)
     parser.add_argument("--dry-run", action="store_true", help="Only run ingestion, skip LLM")
-    parser.add_argument("--model", choices=["ollama", "claude"],
-                        help="LLM backend (overrides config)")
 
     parsed = parser.parse_args(args)
-
-    # Set LLM backend
-    backend = parsed.model or config.get_llm_backend()
-    if backend == "ollama":
-        from .ollama_client import set_backend
-        set_backend("ollama")
-        print("Using Ollama backend")
 
     if parsed.date:
         since_dt = datetime.strptime(parsed.date, "%Y-%m-%d")

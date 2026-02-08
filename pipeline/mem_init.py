@@ -88,12 +88,6 @@ def guided_init(instance_dir: Path):
     if enable_autocal != "n":
         actions.append("auto-calendar")
 
-    # Choose LLM backend
-    print("\nLLM backend:")
-    print("  claude  - Claude CLI (requires 'claude' command)")
-    print("  ollama  - Local Ollama (requires 'ollama serve' + model)")
-    backend = input("Backend [claude]: ").strip() or "claude"
-
     # Create instance directory
     instance_dir.mkdir(parents=True, exist_ok=True)
 
@@ -103,7 +97,7 @@ def guided_init(instance_dir: Path):
         "sources": sources,
         "actions": actions,
         "plugins": [],
-        "llm": {"backend": backend},
+        "llm": {"backend": "claude"},
         "seed_topics": [
             {"name": n, "parent": p} if p else n
             for n, p in seed_topics
@@ -130,7 +124,8 @@ def guided_init(instance_dir: Path):
             name TEXT UNIQUE,
             parent_id INTEGER REFERENCES topics(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            summary TEXT
+            summary TEXT,
+            display_name TEXT
         )
     """)
     cur.execute("""

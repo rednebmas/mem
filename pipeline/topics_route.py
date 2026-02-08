@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 
 from . import config
-from .ollama_client import generate
+from .llm import generate
 from .topic_db import (
     DECAY_THRESHOLD,
     compute_decay_scores,
@@ -17,6 +17,7 @@ from .topic_db import (
     move_topic,
     record_activity,
     rename_topic,
+    set_display_name,
     update_topic_summary,
 )
 
@@ -72,7 +73,7 @@ Output as JSON:
     "topic name": {{{{"note": "What specifically happened", "updated_summary": "Short description of what this topic covers"}}}}
   }}}},
   "new_topics": [
-    {{{{"name": "new topic name", "parent": "parent or null", "summary": "Timeless description of what this topic IS (no dates)"}}}}
+    {{{{"name": "new-topic-name", "parent": "parent or null", "summary": "Timeless description of what this topic IS (no dates)", "display_name": "New Topic Name"}}}}
   ],
   "renames": {{{{
     "old name": "new name"
@@ -83,6 +84,81 @@ Output as JSON:
 }}}}
 
 Output ONLY valid JSON, no other text."""
+
+
+def generate_routing_prompt():
+    """Generate a routing prompt customized with the user's real topic examples.
+
+    Replaces the hardcoded generic examples (Stark Industries, pepper-potts, etc.)
+    with real topics from the user's tree. Writes to {instance_dir}/routing_prompt.md.
+    """
+    topics = get_topic_tree()
+    by_parent = {}
+    for t in topics:
+        by_parent.setdefault(t["parent_name"], []).append(t)
+
+    # Find a root topic with children for the GOOD/BAD parent example
+    # Prefer a root with a short summary for cleaner examples
+    roots = by_parent.get(None, [])
+    parent_example = None
+    child_example = None
+    child2_example = None
+    candidates = []
+    for root in roots:
+        children = by_parent.get(root["name"], [])
+        named_children = [c for c in children if c.get("display_name") or c["name"]]
+        if len(named_children) >= 2 and root["summary"]:
+            candidates.append((root, named_children))
+    # Pick the one with shortest summary
+    candidates.sort(key=lambda x: len(x[0]["summary"] or ""))
+    if candidates:
+        parent_example, children = candidates[0]
+        child_example = children[0]
+        child2_example = children[1]
+
+    # Find a person under "people" for the person example
+    person_example = None
+    people_children = by_parent.get("people", [])
+    if people_children:
+        person_example = people_children[0]
+
+    prompt = ROUTING_PROMPT
+
+    # Replace parent/child examples
+    if parent_example and child_example and child2_example:
+        c1_display = child_example.get("display_name") or child_example["name"]
+        c2_display = child2_example.get("display_name") or child2_example["name"]
+        p_name = parent_example["name"]
+        p_summary = (parent_example["summary"] or p_name).rstrip(".")
+        prompt = prompt.replace(
+            'GOOD parent: "business" → "Stark Industries."  (children carry the details)',
+            f'GOOD parent: "{p_name}" → "{p_summary}."  (children carry the details)',
+        )
+        prompt = prompt.replace(
+            'BAD parent: "business" → "Stark Industries. Active projects include Arc Reactor and Jarvis."  (naming children in parent)',
+            f'BAD parent: "{p_name}" → "{p_summary}. Includes {c1_display} and {c2_display}."  (naming children in parent)',
+        )
+
+    # Replace person example
+    if person_example:
+        prompt = prompt.replace(
+            '"people/pepper-potts"',
+            f'"people/{person_example["name"]}"',
+        )
+
+    # Replace subtopic relatedness examples with real ones if possible
+    outdoor_children = by_parent.get("outdoor-recreation", [])
+    if outdoor_children:
+        real_child = outdoor_children[0]["name"]
+        prompt = prompt.replace(
+            '"surfing" is a subcategory of "outdoor-recreation"',
+            f'"{real_child}" is a subcategory of "outdoor-recreation"',
+        )
+
+    output_path = config.get_instance_dir() / "routing_prompt.md"
+    output_path.write_text(prompt)
+    print(f"  Wrote {output_path}")
+    return output_path
 
 
 def _load_routing_prompt() -> str:
@@ -240,9 +316,10 @@ def route_all(results, activity_date=None, actions=None):
         name = topic["name"]
         parent = topic.get("parent")
         summary = topic.get("summary", "")
+        display_name = topic.get("display_name")
         if isinstance(summary, list):
             summary = "\n".join(summary)
-        insert_topic(name, parent_name=parent, summary=summary)
+        insert_topic(name, parent_name=parent, summary=summary, display_name=display_name)
         record_activity(name, "all", summary, activity_date=activity_date)
         updated_count += 1
 

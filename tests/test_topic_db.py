@@ -15,6 +15,7 @@ from pipeline.topic_db import (
     move_topic,
     record_activity,
     rename_topic,
+    set_display_name,
     update_topic_summary,
 )
 
@@ -263,3 +264,56 @@ class TestTopicCrud:
         """record_activity should auto-create the topic if it doesn't exist."""
         record_activity("auto-created", "test", "some context")
         assert get_topic_id("auto-created") is not None
+
+
+# ---------------------------------------------------------------------------
+# display_name
+# ---------------------------------------------------------------------------
+
+class TestDisplayName:
+    def test_insert_with_display_name(self):
+        insert_topic("ai-tools", display_name="AI Tools")
+        topics = get_topic_tree()
+        t = [t for t in topics if t["name"] == "ai-tools"][0]
+        assert t["display_name"] == "AI Tools"
+
+    def test_insert_without_display_name(self):
+        insert_topic("plain")
+        topics = get_topic_tree()
+        t = [t for t in topics if t["name"] == "plain"][0]
+        assert t["display_name"] is None
+
+    def test_set_display_name(self):
+        insert_topic("my-topic")
+        set_display_name("my-topic", "My Topic")
+        topics = get_topic_tree()
+        t = [t for t in topics if t["name"] == "my-topic"][0]
+        assert t["display_name"] == "My Topic"
+
+    def test_output_uses_display_name(self):
+        """format_topic_tree_for_output should use display_name when available."""
+        seed_topics([("ai-and-coding", None, "AI stuff")])
+        set_display_name("ai-and-coding", "AI and Coding")
+        topics = get_topic_tree()
+        scores = {t["id"]: 1.0 for t in topics}
+        text = format_topic_tree_for_output(topics, scores)
+        assert "AI and Coding: AI stuff" in text
+        assert "ai-and-coding" not in text
+
+    def test_output_falls_back_to_name(self):
+        """format_topic_tree_for_output falls back to name when no display_name."""
+        seed_topics([("work", None, "Job")])
+        topics = get_topic_tree()
+        scores = {t["id"]: 1.0 for t in topics}
+        text = format_topic_tree_for_output(topics, scores)
+        assert "work: Job" in text
+
+    def test_routing_tree_uses_slug(self):
+        """format_topic_tree_for_routing should always use slug name, not display_name."""
+        seed_topics([("ai-and-coding", None, "AI stuff")])
+        set_display_name("ai-and-coding", "AI and Coding")
+        topics = get_topic_tree()
+        scores = {t["id"]: 1.0 for t in topics}
+        text = format_topic_tree_for_routing(topics, scores)
+        assert "ai-and-coding: AI stuff" in text
+        assert "AI and Coding" not in text

@@ -51,7 +51,8 @@ def reseed(skip_confirm=False):
             name TEXT UNIQUE,
             parent_id INTEGER REFERENCES topics(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            summary TEXT
+            summary TEXT,
+            display_name TEXT
         )
     """)
     cur.execute("""

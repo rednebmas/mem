@@ -19,7 +19,8 @@ def get_topic_tree():
     conn = _conn()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT t.id, t.name, t.parent_id, p.name as parent_name, t.summary
+        SELECT t.id, t.name, t.parent_id, p.name as parent_name, t.summary,
+               t.display_name
         FROM topics t
         LEFT JOIN topics p ON t.parent_id = p.id
         ORDER BY t.parent_id NULLS FIRST, t.name
@@ -29,6 +30,7 @@ def get_topic_tree():
         topics.append({
             "id": row[0], "name": row[1], "parent_id": row[2],
             "parent_name": row[3], "summary": row[4],
+            "display_name": row[5],
         })
     conn.close()
     return topics
@@ -184,8 +186,9 @@ def format_topic_tree_for_output(topics, scores, threshold=DECAY_THRESHOLD):
             if t["id"] not in include:
                 continue
             prefix = "\t" * indent + "- "
+            label = t.get("display_name") or t["name"]
             summary = f": {t['summary']}" if t["summary"] else ""
-            lines.append(f"{prefix}{t['name']}{summary}")
+            lines.append(f"{prefix}{label}{summary}")
             _render(t["id"], indent + 1)
 
     _render(None)
@@ -242,7 +245,7 @@ def move_topic(name, new_parent_name):
     conn.close()
 
 
-def insert_topic(name, parent_name=None, summary=None):
+def insert_topic(name, parent_name=None, summary=None, display_name=None):
     """Insert a new topic. Returns its ID. Skips if already exists."""
     conn = _conn()
     cursor = conn.cursor()
@@ -254,8 +257,8 @@ def insert_topic(name, parent_name=None, summary=None):
             parent_id = row[0]
     try:
         cursor.execute(
-            "INSERT INTO topics (name, parent_id, summary) VALUES (?, ?, ?)",
-            (name, parent_id, summary),
+            "INSERT INTO topics (name, parent_id, summary, display_name) VALUES (?, ?, ?, ?)",
+            (name, parent_id, summary, display_name),
         )
         conn.commit()
         topic_id = cursor.lastrowid
@@ -304,6 +307,16 @@ def update_topic_summary(name, summary):
     cursor.execute("UPDATE topics SET summary = ? WHERE name = ?", (summary, name))
     conn.commit()
     conn.close()
+
+
+def set_display_name(name, display_name):
+    """Set the display name for a topic."""
+    conn = _conn()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE topics SET display_name = ? WHERE name = ?", (display_name, name))
+    conn.commit()
+    conn.close()
+
 
 
 def generate_topics_file():

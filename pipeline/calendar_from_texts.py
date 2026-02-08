@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from . import config
-from .ollama_client import generate
+from .llm import generate
 from .ingest.texts import TextsSource
 from .ingest.calendar_events import CalendarSource, _fetch_events, _format_event_time
 

@@ -30,7 +30,8 @@ def _init_db(db_path):
             name TEXT UNIQUE,
             parent_id INTEGER REFERENCES topics(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            summary TEXT
+            summary TEXT,
+            display_name TEXT
         )
     """)
     conn.execute("""
