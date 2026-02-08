@@ -27,13 +27,18 @@ About {user}: {user_bio}
 
 Here are the current topics being tracked (with their current summaries).
 Topics shown without a summary (just the name) are inactive/dormant — they exist but have had no recent activity. You can route activity to them. Do NOT create duplicates of these.
+
 ---
+
 {{topic_tree}}
+
 ---
 
 Here is recent activity from all sources:
 ---
+
 {{all_sources}}
+
 ---
 
 For each piece of activity, either:
