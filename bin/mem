@@ -98,7 +98,7 @@ def cmd_install(args):
     minute = 1
     if existing:
         print(f"\nUpdating existing schedule: {plist_path}")
-    else:
+    elif "--yes" not in args and "-y" not in args:
         try:
             time_input = input(f"Run daily at what time? [HH:MM, default 00:01] ").strip()
             if time_input:
