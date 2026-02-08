@@ -5,7 +5,7 @@ Usage:
     mem init <dir>              Create a new instance
     mem run <dir> [options]     Run the topics pipeline
     mem reseed <dir> [--yes]    Clear and re-seed topics DB
-    mem install-tools <dir>     Create {name}-* CLI symlinks
+    mem install-tools <dir>     Create {name}-* tool wrappers in instance dir
 """
 
 import os
@@ -55,19 +55,16 @@ def cmd_install_tools(args):
     for tool in tools_dir.iterdir():
         if tool.name.startswith(".") or tool.name == "__pycache__":
             continue
-        symlink = Path(f"/usr/local/bin/{name}-{tool.name}")
-        # Create a wrapper script instead of a symlink
-        # so the venv python is used
-        wrapper = Path(f"/usr/local/bin/{name}-{tool.name}")
-        wrapper_content = f'#!/bin/sh\nexec "{venv_python}" "{tool}" "$@"\n'
-        try:
-            wrapper.write_text(wrapper_content)
-            wrapper.chmod(0o755)
-            print(f"  Created {wrapper}")
-        except PermissionError:
-            print(f"  Error: need sudo for /usr/local/bin — run: sudo mem install-tools {instance_dir}")
-            return
-    print(f"\nInstalled {name}-* tools to /usr/local/bin/")
+        wrapper = instance_dir / f"{name}-{tool.name}"
+        wrapper_content = (
+            f'#!/bin/sh\n'
+            f'export MEM_INSTANCE_DIR="{instance_dir}"\n'
+            f'exec "{venv_python}" "{tool}" "$@"\n'
+        )
+        wrapper.write_text(wrapper_content)
+        wrapper.chmod(0o755)
+        print(f"  Created {wrapper}")
+    print(f"\nInstalled {name}-* tools to {instance_dir}/")
 
 
 def main():

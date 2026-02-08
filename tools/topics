@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Print, export, or import the topic tree.
+
+Usage:
+  topics                         Full tree with summaries
+  topics --short                 Names only
+  topics outdoor-recreation      Subtree rooted at a topic
+  topics --export                Export to editable file
+  topics --import                Import edits back to DB
+
+Requires MEM_INSTANCE_DIR environment variable (set by install-tools wrapper).
+"""
+
+import argparse
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+
+def get_db_path():
+    instance_dir = os.environ.get("MEM_INSTANCE_DIR")
+    if not instance_dir:
+        print("Error: MEM_INSTANCE_DIR not set. Run via installed wrapper or set manually.", file=sys.stderr)
+        sys.exit(1)
+    return Path(instance_dir) / "topics.db"
+
+
+def get_edit_path():
+    return get_db_path().parent / "topic_tree_edit.md"
+
+
+def load_tree():
+    conn = sqlite3.connect(get_db_path())
+    c = conn.cursor()
+    c.execute('SELECT id, name, parent_id, summary FROM topics ORDER BY name')
+    rows = c.fetchall()
+    conn.close()
+
+    children = {}
+    names = {}
+    summaries = {}
+    ids_by_name = {}
+    for id, name, parent_id, summary in rows:
+        names[id] = name
+        summaries[id] = summary or ""
+        ids_by_name[name] = id
+        children.setdefault(parent_id, []).append(id)
+
+    return children, names, summaries, ids_by_name
+
+
+def tree_to_text(children, names, summaries, parent_id=None, indent=0, short=False):
+    lines = []
+    for id in sorted(children.get(parent_id, []), key=lambda x: names[x]):
+        prefix = "\t" * indent + "- "
+        if short or not summaries[id]:
+            lines.append(f"{prefix}{names[id]}")
+        else:
+            lines.append(f"{prefix}{names[id]}: {summaries[id]}")
+        lines.extend(tree_to_text(children, names, summaries, id, indent + 1, short))
+    return lines
+
+
+def parse_edited_tree(text):
+    """Parse edited tree text back into (name, indent_level, summary) tuples."""
+    entries = []
+    for line in text.strip().split("\n"):
+        if not line.strip() or line.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip("\t"))
+        stripped = line.lstrip("\t").lstrip("- ").strip()
+        if not stripped:
+            continue
+        if ": " in stripped:
+            name, summary = stripped.split(": ", 1)
+        else:
+            name = stripped
+            summary = ""
+        entries.append((name.strip(), indent, summary.strip()))
+    return entries
+
+
+def apply_edits(entries):
+    """Apply parsed edits back to the database."""
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    parent_stack = [None]
+    updated = 0
+
+    for name, indent, summary in entries:
+        while len(parent_stack) > indent + 1:
+            parent_stack.pop()
+
+        parent_name = parent_stack[-1]
+
+        c.execute('SELECT id, summary FROM topics WHERE name = ?', (name,))
+        row = c.fetchone()
+        if row:
+            topic_id, old_summary = row
+            if summary != (old_summary or ""):
+                c.execute('UPDATE topics SET summary = ? WHERE name = ?', (summary, name))
+                updated += 1
+        else:
+            parent_id = None
+            if parent_name:
+                c.execute('SELECT id FROM topics WHERE name = ?', (parent_name,))
+                pr = c.fetchone()
+                if pr:
+                    parent_id = pr[0]
+            c.execute('INSERT INTO topics (name, parent_id, summary) VALUES (?, ?, ?)',
+                      (name, parent_id, summary))
+            updated += 1
+
+        if len(parent_stack) == indent + 1:
+            parent_stack.append(name)
+        else:
+            parent_stack[indent + 1] = name
+
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def export_tree():
+    children, names, summaries, _ = load_tree()
+    lines = tree_to_text(children, names, summaries)
+    edit_path = get_edit_path()
+    content = "# Topic Tree\n"
+    content += "# Edit summaries below. Keep indentation (1 tab per level).\n"
+    content += "# Lines starting with # are ignored on import.\n\n"
+    content += "\n".join(lines) + "\n"
+    edit_path.write_text(content)
+    print(f"Exported to {edit_path}")
+
+
+def import_tree():
+    edit_path = get_edit_path()
+    if not edit_path.exists():
+        print(f"No file at {edit_path} — run --export first")
+        sys.exit(1)
+    text = edit_path.read_text()
+    entries = parse_edited_tree(text)
+    updated = apply_edits(entries)
+    print(f"Updated {updated} topics from {edit_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Print, export, or import the topic tree.")
+    parser.add_argument("topic", nargs="?", help="Show subtree rooted at this topic")
+    parser.add_argument("-s", "--short", action="store_true", help="Names only, no summaries")
+    parser.add_argument("--export", action="store_true", help="Export tree to editable file")
+    parser.add_argument("--import", dest="import_tree", action="store_true", help="Import edits from file back to DB")
+    args = parser.parse_args()
+
+    if args.export:
+        export_tree()
+        return
+    if args.import_tree:
+        import_tree()
+        return
+
+    children, names, summaries, ids_by_name = load_tree()
+
+    if args.topic:
+        if args.topic not in ids_by_name:
+            print(f"Topic '{args.topic}' not found")
+            sys.exit(1)
+        topic_id = ids_by_name[args.topic]
+        prefix = names[topic_id]
+        if not args.short and summaries[topic_id]:
+            prefix += f": {summaries[topic_id]}"
+        print(prefix)
+        lines = tree_to_text(children, names, summaries, topic_id, indent=1, short=args.short)
+        print("\n".join(lines))
+    else:
+        lines = tree_to_text(children, names, summaries, short=args.short)
+        print("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()

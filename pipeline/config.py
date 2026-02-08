@@ -46,7 +46,7 @@ def get_topics_output_path() -> Path:
     cfg = load_config()
     if "topics_output" in cfg:
         return Path(os.path.expanduser(cfg["topics_output"]))
-    return get_instance_dir() / "TOPICS.md"
+    return get_instance_dir() / "MEMORY.md"
 
 
 def get_watermark_path() -> Path:

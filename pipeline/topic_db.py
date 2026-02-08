@@ -147,7 +147,7 @@ def format_topic_tree_for_routing(topics, scores, threshold=DECAY_THRESHOLD):
 
 
 def format_topic_tree_for_output(topics, scores, threshold=DECAY_THRESHOLD):
-    """Format topic tree for TOPICS.md — only active topics appear.
+    """Format topic tree for MEMORY.md — only active topics appear.
 
     Include a topic if score >= threshold OR it has any descendant above threshold.
     Completely omit topics below threshold with no active descendants.
@@ -167,12 +167,13 @@ def format_topic_tree_for_output(topics, scores, threshold=DECAY_THRESHOLD):
         include.add(t["id"])
 
     def _mark_active(parent_id):
+        any_active = False
         for t in by_parent.get(parent_id, []):
             child_active = _mark_active(t["id"])
             if id_to_score.get(t["id"], 0.0) >= threshold or child_active:
                 include.add(t["id"])
-                return True
-        return False
+                any_active = True
+        return any_active
 
     _mark_active(None)
 
@@ -306,7 +307,7 @@ def update_topic_summary(name, summary):
 
 
 def generate_topics_file():
-    """Write the full topic tree with summaries to TOPICS.md.
+    """Write the full topic tree with summaries to MEMORY.md.
 
     Uses decay scoring to filter out stale topics from the output.
     """

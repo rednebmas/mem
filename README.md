@@ -4,14 +4,14 @@ A personal knowledge system that builds topic hierarchies from your digital life
 
 ## How It Works
 
-mem ingests data from your personal sources (browser history, texts, emails, calendar, etc.), routes items to topic hierarchies via LLM, and maintains per-topic summaries. The output is a continuously-updated `TOPICS.md` that represents your current life context.
+mem ingests data from your personal sources (browser history, texts, emails, calendar, etc.), routes items to topic hierarchies via LLM, and maintains per-topic summaries. The output is a continuously-updated `MEMORY.md` that represents your current life context.
 
 ```
 Data Sources (browser, texts, email, calendar, calls, reminders, claude)
     ↓ noise-filtered
 Topic Routing + Summarization (LLM)
     ↓
-Topic Hierarchies (SQLite) → TOPICS.md
+Topic Hierarchies (SQLite) → MEMORY.md
 ```
 
 ## Quickstart
@@ -44,7 +44,8 @@ Created by `mem init`:
 ├── config.json          # Collectors, actions, LLM backend, plugins
 ├── bio.md               # Your bio (inserted into LLM prompts)
 ├── topics.db            # SQLite topic tree + activity log
-├── TOPICS.md            # Generated output
+├── MEMORY.md            # Generated output
+├── {name}-*             # CLI tool wrappers (created by install-tools)
 ├── debug/               # LLM prompt/response logs
 ├── .last_run            # Watermark for incremental processing
 ├── google_oauth.json    # GCP OAuth credentials (if using email/calendar)
@@ -77,7 +78,7 @@ Add it to `config.json`:
 
 ## CLI Tools
 
-`mem install-tools <dir>` creates `{name}-*` symlinks:
+`mem install-tools <dir>` creates `{name}-*` wrapper scripts in the instance directory:
 
 | Tool | Description |
 |------|-------------|
@@ -87,6 +88,9 @@ Add it to `config.json`:
 | `{name}-calendar` | Calendar events |
 | `{name}-claude_history` | Claude Code history |
 | `{name}-browser_history` | Browser history |
+| `{name}-topics` | Print/export/import the topic tree |
+
+Re-run `mem install-tools <dir>` after updating mem to get the latest tool versions.
 
 ## Requirements
 

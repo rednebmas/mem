@@ -8,7 +8,7 @@ The core architecture — topic hierarchies, decay scoring, LLM routing — is d
 
 A `mem` agent type that watches a codebase and maintains a living topic tree of what's evolving. A collector plugin runs `git log --patch` (or watches a CI pipeline), and the routing prompt is tuned for code: modules, features, architectural patterns instead of personal life categories.
 
-The output `TOPICS.md` goes into the repo's system prompt, giving every new Claude Code session instant context about what's active — no manual onboarding needed.
+The output `MEMORY.md` goes into the repo's system prompt, giving every new Claude Code session instant context about what's active — no manual onboarding needed.
 
 **What it would need:**
 - A codebase-specific routing prompt (different examples, rules, and noise filtering)

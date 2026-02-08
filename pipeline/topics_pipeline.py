@@ -130,7 +130,7 @@ Examples:
     run_pipeline(since_dt, until_dt, parsed.source, parsed.dry_run)
 
     if not parsed.dry_run:
-        print(f"\n=== Generating TOPICS.md ===")
+        print(f"\n=== Generating MEMORY.md ===")
         generate_topics_file()
 
     elapsed = time.time() - pipeline_start
