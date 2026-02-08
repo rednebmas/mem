@@ -250,6 +250,7 @@ def validate_and_create(person, flag_context=""):
                 f"**returncode:** {cal_result.returncode}\n"
             ))
             actions.append({"action": "create", "title": title, "start": start})
+            config.notify(f"📅 Created: {title} ({start})")
 
         elif action == "hold":
             start = event.get("start")
@@ -279,6 +280,7 @@ def validate_and_create(person, flag_context=""):
                 f"**returncode:** {cal_result.returncode}\n"
             ))
             actions.append({"action": "hold", "title": hold_title, "start": start})
+            config.notify(f"⏳ Hold: {title} ({start}) — awaiting confirmation")
 
         elif action == "confirm_hold":
             hold_title = title if title.startswith(HOLD_PREFIX) else f"{HOLD_PREFIX}{title}"
@@ -294,6 +296,7 @@ def validate_and_create(person, flag_context=""):
                 f"**returncode:** {cal_result.returncode}\n"
             ))
             actions.append({"action": "confirm_hold", "title": confirmed_title})
+            config.notify(f"✅ Confirmed: {confirmed_title}")
 
         elif action == "delete":
             cmd = [cal_tool, "--delete", title]
@@ -350,6 +353,8 @@ def _expire_holds():
             cmd = [cal_tool, "--delete", summary]
             print(f"    Expiring hold ({reason}): {summary}")
             subprocess.run(cmd, capture_output=True, text=True)
+            clean_title = summary.replace(HOLD_PREFIX, "", 1)
+            config.notify(f"⌛ Hold expired: {clean_title} — no confirmation received")
             expired.append(summary)
 
     if expired:

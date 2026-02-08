@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from pathlib import Path
 
 _instance_dir = None  # Set once at startup
@@ -96,3 +97,15 @@ def render_template(text: str) -> str:
     text = text.replace("{user}", get_user_name())
     text = text.replace("{user_bio}", get_user_bio())
     return text
+
+
+def notify(message: str):
+    """Send a notification via the user's configured notify_command. No-op if not set."""
+    cmd = load_config().get("notify_command")
+    if not cmd:
+        return
+    cmd = os.path.expanduser(cmd)
+    try:
+        subprocess.run(cmd, input=message, text=True, timeout=30, shell=True)
+    except Exception as e:
+        print(f"  Notification failed: {e}")
