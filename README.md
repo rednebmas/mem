@@ -45,7 +45,7 @@ Created by `mem init`:
 ├── bio.md               # Your bio (inserted into LLM prompts)
 ├── topics.db            # SQLite topic tree + activity log
 ├── MEMORY.md            # Generated output
-├── {name}-*             # CLI tool wrappers (created by install-tools)
+├── {name}-*             # CLI tool wrappers (created by upgrade)
 ├── debug/               # LLM prompt/response logs
 ├── .last_run            # Watermark for incremental processing
 ├── google_oauth.json    # GCP OAuth credentials (if using email/calendar)
@@ -78,7 +78,7 @@ Add it to `config.json`:
 
 ## CLI Tools
 
-`mem install <dir>` creates `{name}-*` wrapper scripts in the instance directory and optionally sets up daily scheduled runs via launchd:
+`mem init` installs tools automatically. `mem upgrade <dir>` reinstalls wrappers (e.g. after new tools are added).
 
 | Tool | Description |
 |------|-------------|
@@ -90,7 +90,7 @@ Add it to `config.json`:
 | `{name}-browser_history` | Browser history |
 | `{name}-topics` | Print/export/import the topic tree |
 
-Re-run `mem install <dir>` after updating mem to get the latest tool versions and update the schedule.
+Re-run `mem upgrade <dir>` after adding new tools to pick up the new wrappers.
 
 ## Requirements
 

@@ -5,7 +5,7 @@ Usage:
     mem init <dir>              Create a new instance
     mem run <dir> [options]     Run the topics pipeline
     mem reseed <dir> [--yes]    Clear and re-seed topics DB
-    mem install <dir>           Install tools + optional scheduled runs
+    mem upgrade <dir>           Reinstall tool wrappers (e.g. after new tools added)
 """
 
 import os
@@ -24,7 +24,7 @@ def cmd_init(args):
     instance_dir = Path(args[0]).expanduser().resolve()
     guided_init(instance_dir)
     if (instance_dir / "config.json").exists():
-        cmd_install(args)
+        cmd_upgrade(args)
 
 
 def cmd_run(args):
@@ -46,7 +46,7 @@ def cmd_reseed(args):
     reseed(skip_confirm=skip_confirm)
 
 
-def cmd_install(args):
+def cmd_upgrade(args):
     from pipeline import config
     instance_dir = Path(args[0]).expanduser().resolve()
     config.init(instance_dir)
@@ -173,7 +173,7 @@ def main():
         "init": cmd_init,
         "run": cmd_run,
         "reseed": cmd_reseed,
-        "install": cmd_install,
+        "upgrade": cmd_upgrade,
     }
 
     if command in ("-h", "--help"):
