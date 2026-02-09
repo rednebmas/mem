@@ -10,7 +10,7 @@ def generate(prompt, allowed_tools=None):
     start = time.time()
     sys.stderr.write("  Calling Claude...")
     sys.stderr.flush()
-    cmd = ["claude", "-p", "--chrome", prompt]
+    cmd = ["claude", "-p", prompt]
     if allowed_tools:
         cmd += ["--allowedTools"] + allowed_tools
     result = subprocess.run(

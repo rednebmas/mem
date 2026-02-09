@@ -65,6 +65,8 @@ TOPIC STRUCTURE:
 
 SKIP routine noise that doesn't reveal anything personal: delivery notifications, 2FA codes, parking confirmations, spam texts, generic browsing.
 
+WEB SEARCH: When you encounter product names, companies, tools, apps, acronyms, or other specific terms you don't recognize, use the WebSearch tool to look them up before routing/summarizing. This produces more specific, accurate summaries. Only search for terms that are genuinely unfamiliar — don't search for well-known things.
+
 {action_instructions}
 
 Output as JSON:
@@ -272,13 +274,13 @@ def route_all(results, activity_date=None, actions=None):
         action_output_fields=action_output_fields,
     )
     print("Routing all sources...")
-    raw = generate(prompt)
+    raw = generate(prompt, allowed_tools=["WebSearch"])
     _log("route_all", prompt, raw)
     try:
         result = _parse_json(raw)
     except json.JSONDecodeError:
         print("  Warning: JSON parse error, retrying...")
-        raw = generate(prompt)
+        raw = generate(prompt, allowed_tools=["WebSearch"])
         _log("route_all_retry", prompt, raw)
         try:
             result = _parse_json(raw)
