@@ -30,14 +30,14 @@ Topics shown without a summary (just the name) are inactive/dormant — they exi
 
 ---
 
-{{topic_tree}}
+{topic_tree}
 
 ---
 
 Here is recent activity from all sources:
 ---
 
-{{all_sources}}
+{all_sources}
 
 ---
 
@@ -155,6 +155,11 @@ def generate_routing_prompt():
             '"surfing" is a subcategory of "outdoor-recreation"',
             f'"{real_child}" is a subcategory of "outdoor-recreation"',
         )
+
+    # ROUTING_PROMPT uses quadruple braces ({{{{) because Python .format()
+    # needs double braces for literal braces. But the instance file only goes
+    # through one .format() pass at runtime, so halve the braces.
+    prompt = prompt.replace('{{{{', '{{').replace('}}}}', '}}')
 
     output_path = config.get_instance_dir() / "routing_prompt.md"
     output_path.write_text(prompt)

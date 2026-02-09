@@ -28,10 +28,10 @@ def copy_db(src):
 
 
 def _query_db(db_path, sql, params, ts_fn, browser, label=None):
-    tmp = copy_db(db_path)
-    if not tmp:
-        return []
     try:
+        tmp = copy_db(db_path)
+        if not tmp:
+            return []
         conn = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
         rows = conn.execute(sql, params).fetchall()
         conn.close()
@@ -45,7 +45,8 @@ def _query_db(db_path, sql, params, ts_fn, browser, label=None):
         print(f"Warning: Could not read {name} history: {e}", file=sys.stderr)
         return []
     finally:
-        tmp.unlink(missing_ok=True)
+        if 'tmp' in locals() and tmp:
+            tmp.unlink(missing_ok=True)
 
 
 def find_chrome_profiles():

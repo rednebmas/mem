@@ -87,7 +87,11 @@ def collect_all(since_dt, sources=None, until_dt=None):
             continue
         if not source.is_available():
             continue
-        output = source.collect(since_dt, until_dt=until_dt)
+        try:
+            output = source.collect(since_dt, until_dt=until_dt)
+        except Exception as e:
+            print(f"  Warning: source '{name}' failed: {e}", file=sys.stderr)
+            continue
         if output:
             results[name] = output
 

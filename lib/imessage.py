@@ -18,12 +18,14 @@ def get_connection():
 
     try:
         conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+        conn.execute("SELECT 1 FROM message LIMIT 1")
         return conn
     except sqlite3.OperationalError as e:
-        print(f"Error: Unable to open database: {e}", file=sys.stderr)
-        print("\nGrant Full Disk Access:", file=sys.stderr)
-        print("  System Settings > Privacy & Security > Full Disk Access > Add your terminal app", file=sys.stderr)
-        sys.exit(1)
+        raise PermissionError(
+            f"Unable to open Messages database: {e}\n"
+            "Grant Full Disk Access:\n"
+            "  System Settings > Privacy & Security > Full Disk Access > Add your terminal app"
+        ) from e
 
 
 def extract_text_from_attributed_body(blob):

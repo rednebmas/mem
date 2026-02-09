@@ -156,7 +156,11 @@ def main():
     args = parser.parse_args()
 
     resolver = ContactResolver()
-    conn = get_connection()
+    try:
+        conn = get_connection()
+    except PermissionError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
     cursor = conn.cursor()
 
     if args.list:
