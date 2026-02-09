@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from . import config
 from .llm import generate
 from .ingest.texts import TextsSource
-from .ingest.calendar_events import CalendarSource, _fetch_events, _format_event_time
+from .ingest.calendar_events import _fetch_events, _format_event_time
 
 HOLD_PREFIX = "[HOLD] "
 HOLD_EXPIRY_DAYS = 2

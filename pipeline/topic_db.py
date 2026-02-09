@@ -314,7 +314,6 @@ def set_display_name(name, display_name):
     conn.close()
 
 
-
 def generate_topics_file():
     """Write the full topic tree with summaries to MEMORY.md.
 

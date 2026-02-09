@@ -1,4 +1,4 @@
-"""Topic routing + contextualization via LLM (single call with all sources)."""
+"""Topic routing via LLM (single call with all sources)."""
 
 import json
 import sys
@@ -17,7 +17,6 @@ from .topic_db import (
     move_topic,
     record_activity,
     rename_topic,
-    set_display_name,
     update_topic_summary,
 )
 
@@ -210,12 +209,6 @@ def _log_topic_tree():
     print(f"  Topic tree: {path}")
 
 
-def _estimate_ctx(text):
-    """Estimate needed context: input tokens * 2 for output headroom, min 8k."""
-    tokens = len(text) // 3
-    return max(8192, min(32768, tokens * 2))
-
-
 def _parse_json(text):
     """Extract JSON from LLM response, handling markdown fences and extra text."""
     text = text.strip()
@@ -278,15 +271,14 @@ def route_all(results, activity_date=None, actions=None):
         action_instructions=action_instructions,
         action_output_fields=action_output_fields,
     )
-    ctx = _estimate_ctx(prompt)
     print("Routing all sources...")
-    raw = generate(prompt, context_length=ctx)
+    raw = generate(prompt)
     _log("route_all", prompt, raw)
     try:
         result = _parse_json(raw)
     except json.JSONDecodeError:
         print("  Warning: JSON parse error, retrying...")
-        raw = generate(prompt, context_length=ctx)
+        raw = generate(prompt)
         _log("route_all_retry", prompt, raw)
         try:
             result = _parse_json(raw)

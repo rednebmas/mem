@@ -10,8 +10,7 @@ Generic hierarchical topic summarizer. Ingests unstructured text, routes to topi
 | `pipeline/config.py` | Instance dir loader, all path resolution |
 | `pipeline/topic_db.py` | SQLite (topics tree + activity log), decay scoring (14-day half-life) |
 | `pipeline/topics_route.py` | LLM routing prompt, JSON parsing |
-| `pipeline/topics_context.py` | Per-topic LLM summarization |
-| `pipeline/topics_pipeline.py` | Full pipeline: ingest → route → contextualize → MEMORY.md |
+| `pipeline/topics_pipeline.py` | Full pipeline: ingest → route → MEMORY.md |
 | `pipeline/llm.py` | LLM client (Claude CLI with `--chrome` for MCP tools) |
 | `pipeline/actions.py` | Action plugin system (piggybacks on routing LLM call) |
 | `pipeline/mem_init.py` | Interactive `mem init` setup flow |

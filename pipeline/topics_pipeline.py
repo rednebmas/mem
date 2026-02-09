@@ -1,4 +1,4 @@
-"""CLI entry point for the topics pipeline: ingest → route + contextualize.
+"""CLI entry point for the topics pipeline: ingest → route.
 
 Processes data since the last successful run (watermark-based).
 Falls back to last 24h if no watermark exists.
