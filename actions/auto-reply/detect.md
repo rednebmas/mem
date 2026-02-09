@@ -1,0 +1,1 @@
+UNANSWERED MESSAGES: If any 1-on-1 text conversations show messages from someone else that {user} hasn't replied to AND the message requires a response (questions, invitations, requests — not just reactions, links, or one-word acknowledgments), flag them in the "unanswered_texts" field. Skip group chats.

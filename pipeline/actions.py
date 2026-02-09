@@ -39,6 +39,13 @@ def _handle_auto_calendar(flags):
     return process_schedule_flags(flags)
 
 
+@_register_builtin("auto-reply")
+def _handle_auto_reply(flags):
+    """Process unanswered text flags via auto_reply."""
+    from .auto_reply import process_unanswered_flags
+    return process_unanswered_flags(flags)
+
+
 def load_actions() -> list[dict]:
     """Load enabled actions from config. Returns list of action dicts with:
     - name: action name
