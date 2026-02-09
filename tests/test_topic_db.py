@@ -308,12 +308,71 @@ class TestDisplayName:
         text = format_topic_tree_for_output(topics, scores)
         assert "work: Job" in text
 
-    def test_routing_tree_uses_slug(self):
-        """format_topic_tree_for_routing should always use slug name, not display_name."""
+    def test_routing_tree_uses_display_name(self):
+        """format_topic_tree_for_routing should use display_name when available."""
         seed_topics([("ai-and-coding", None, "AI stuff")])
         set_display_name("ai-and-coding", "AI and Coding")
         topics = get_topic_tree()
         scores = {t["id"]: 1.0 for t in topics}
         text = format_topic_tree_for_routing(topics, scores)
-        assert "ai-and-coding: AI stuff" in text
-        assert "AI and Coding" not in text
+        assert "AI and Coding: AI stuff" in text
+        assert "ai-and-coding" not in text
+
+    def test_routing_tree_falls_back_to_slug(self):
+        """format_topic_tree_for_routing falls back to slug when no display_name."""
+        seed_topics([("work", None, "Job")])
+        topics = get_topic_tree()
+        scores = {t["id"]: 1.0 for t in topics}
+        text = format_topic_tree_for_routing(topics, scores)
+        assert "work: Job" in text
+
+    def test_get_topic_id_by_display_name(self):
+        """get_topic_id should resolve display names."""
+        insert_topic("ai-and-coding", display_name="AI and Coding")
+        tid = get_topic_id("AI and Coding")
+        assert tid is not None
+        assert tid == get_topic_id("ai-and-coding")
+
+    def test_get_topic_id_slug_preferred(self):
+        """Slug match takes priority over display name match."""
+        insert_topic("alpha", display_name="Beta")
+        insert_topic("beta", display_name="Alpha")
+        # "alpha" should match the slug "alpha", not the display "Alpha"
+        assert get_topic_id("alpha") == get_topic_id("alpha")
+
+    def test_record_activity_by_display_name(self):
+        """record_activity should work with display names."""
+        insert_topic("ai-and-coding", display_name="AI and Coding")
+        record_activity("AI and Coding", "test", "some activity")
+        scores = compute_decay_scores()
+        assert scores[get_topic_id("ai-and-coding")] > 0
+
+    def test_update_summary_by_display_name(self):
+        """update_topic_summary should work with display names."""
+        insert_topic("ai-and-coding", summary="old", display_name="AI and Coding")
+        update_topic_summary("AI and Coding", "new summary")
+        assert get_topic_summary("ai-and-coding") == "new summary"
+
+    def test_rename_by_display_name(self):
+        """rename_topic should resolve old name by display name."""
+        insert_topic("old-slug", display_name="Old Topic")
+        rename_topic("Old Topic", "new-slug")
+        assert get_topic_id("old-slug") is None
+        assert get_topic_id("new-slug") is not None
+
+    def test_move_by_display_name(self):
+        """move_topic should resolve names by display name."""
+        insert_topic("parent-slug", display_name="Parent Topic")
+        insert_topic("child-slug", display_name="Child Topic")
+        move_topic("Child Topic", "Parent Topic")
+        topics = get_topic_tree()
+        child = [t for t in topics if t["name"] == "child-slug"][0]
+        assert child["parent_name"] == "parent-slug"
+
+    def test_insert_with_display_name_parent(self):
+        """insert_topic should resolve parent by display name."""
+        insert_topic("parent-slug", display_name="Parent Topic")
+        insert_topic("child", parent_name="Parent Topic")
+        topics = get_topic_tree()
+        child = [t for t in topics if t["name"] == "child"][0]
+        assert child["parent_name"] == "parent-slug"

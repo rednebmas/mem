@@ -121,8 +121,9 @@ def get_latest_activity_dates():
 def format_topic_tree_for_routing(topics, scores, threshold=DECAY_THRESHOLD):
     """Format topic tree for routing prompt — shows ALL topics.
 
-    Active topics (score >= threshold) show name: summary.
-    Inactive topics (score < threshold) show bare name only.
+    Active topics (score >= threshold) show display_name: summary.
+    Inactive topics (score < threshold) show bare display_name only.
+    Uses display_name when available, falls back to slug name.
     """
     if not topics:
         return "(no topics yet)"
@@ -137,11 +138,12 @@ def format_topic_tree_for_routing(topics, scores, threshold=DECAY_THRESHOLD):
     def _render(parent_id, indent=0):
         for t in by_parent.get(parent_id, []):
             prefix = "\t" * indent + "- "
+            label = t.get("display_name") or t["name"]
             score = id_to_score.get(t["id"], 0.0)
             if score >= threshold and t["summary"]:
-                lines.append(f"{prefix}{t['name']}: {t['summary']}")
+                lines.append(f"{prefix}{label}: {t['summary']}")
             else:
-                lines.append(f"{prefix}{t['name']}")
+                lines.append(f"{prefix}{label}")
             _render(t["id"], indent + 1)
 
     _render(None)
@@ -196,51 +198,45 @@ def format_topic_tree_for_output(topics, scores, threshold=DECAY_THRESHOLD):
 
 
 def get_topic_id(name):
-    """Get topic ID by name, or None if not found."""
+    """Get topic ID by slug name or display name, or None if not found."""
     conn = _conn()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM topics WHERE name = ?", (name,))
     row = cursor.fetchone()
+    if not row:
+        cursor.execute("SELECT id FROM topics WHERE display_name = ?", (name,))
+        row = cursor.fetchone()
     conn.close()
     return row[0] if row else None
 
 
 def rename_topic(old_name, new_name):
     """Rename a topic. No-op if old_name doesn't exist or new_name already taken."""
+    old_id = get_topic_id(old_name)
+    if not old_id:
+        return
+    if get_topic_id(new_name):
+        return
     conn = _conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM topics WHERE name = ?", (old_name,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return
-    cursor.execute("SELECT id FROM topics WHERE name = ?", (new_name,))
-    if cursor.fetchone():
-        conn.close()
-        return
-    cursor.execute("UPDATE topics SET name = ? WHERE name = ?", (new_name, old_name))
+    cursor.execute("UPDATE topics SET name = ? WHERE id = ?", (new_name, old_id))
     conn.commit()
     conn.close()
 
 
 def move_topic(name, new_parent_name):
     """Move a topic under a new parent (or to root if new_parent_name is None)."""
-    conn = _conn()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM topics WHERE name = ?", (name,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
+    topic_id = get_topic_id(name)
+    if not topic_id:
         return
     new_parent_id = None
     if new_parent_name:
-        cursor.execute("SELECT id FROM topics WHERE name = ?", (new_parent_name,))
-        parent_row = cursor.fetchone()
-        if not parent_row:
-            conn.close()
+        new_parent_id = get_topic_id(new_parent_name)
+        if not new_parent_id:
             return
-        new_parent_id = parent_row[0]
-    cursor.execute("UPDATE topics SET parent_id = ? WHERE name = ?", (new_parent_id, name))
+    conn = _conn()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE topics SET parent_id = ? WHERE id = ?", (new_parent_id, topic_id))
     conn.commit()
     conn.close()
 
@@ -251,10 +247,7 @@ def insert_topic(name, parent_name=None, summary=None, display_name=None):
     cursor = conn.cursor()
     parent_id = None
     if parent_name:
-        cursor.execute("SELECT id FROM topics WHERE name = ?", (parent_name,))
-        row = cursor.fetchone()
-        if row:
-            parent_id = row[0]
+        parent_id = get_topic_id(parent_name)
     try:
         cursor.execute(
             "INSERT INTO topics (name, parent_id, summary, display_name) VALUES (?, ?, ?, ?)",
@@ -302,9 +295,12 @@ def get_topic_summary(name):
 
 def update_topic_summary(name, summary):
     """Update a topic's summary."""
+    topic_id = get_topic_id(name)
+    if not topic_id:
+        return
     conn = _conn()
     cursor = conn.cursor()
-    cursor.execute("UPDATE topics SET summary = ? WHERE name = ?", (summary, name))
+    cursor.execute("UPDATE topics SET summary = ? WHERE id = ?", (summary, topic_id))
     conn.commit()
     conn.close()
 
