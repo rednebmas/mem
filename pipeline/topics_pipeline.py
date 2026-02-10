@@ -138,7 +138,8 @@ Examples:
     sys.stderr = tee_err.stream
     debug_dir = config.get_debug_dir()
     ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    log_path = debug_dir / f"{ts}_pipeline_run.md"
+    dry_tag = "dry_run_" if parsed.dry_run else ""
+    log_path = debug_dir / f"{ts}_{dry_tag}pipeline_run.md"
     log_path.write_text(
         f"# Pipeline Run: {label}\n\n```\n{tee_out.getvalue()}{tee_err.getvalue()}```\n"
     )
