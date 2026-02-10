@@ -24,20 +24,6 @@ def _resolve_paths():
     if _credentials_file is not None:
         return
 
-    # Try instance dir first
-    try:
-        from pipeline import config as cfg
-        instance_dir = cfg.get_instance_dir()
-        oauth = instance_dir / "google_oauth.json"
-        token = instance_dir / "google_token.json"
-        if oauth.exists():
-            _credentials_file = str(oauth)
-            _token_file = str(token)
-            return
-    except Exception:
-        pass
-
-    # Fall back to ~/.config/mem/
     config_dir = os.path.expanduser('~/.config/mem')
     _credentials_file = os.path.join(config_dir, 'google_oauth.json')
     _token_file = os.path.join(config_dir, 'google_token.json')

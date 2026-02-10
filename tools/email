@@ -43,19 +43,47 @@ def archive_messages(service, message_ids):
     print(f"Archived {len(message_ids)} email(s).")
 
 
+def send_email(service, to, subject, body):
+    from email.mime.text import MIMEText as _MIMEText
+    message = _MIMEText(body)
+    message['to'] = to
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    result = service.users().messages().send(userId='me', body={'raw': raw}).execute()
+    print(f"Sent to {to}: {subject}")
+    return result
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Query and manage Gmail messages',
+    parser = argparse.ArgumentParser(description='Query, manage, and send Gmail messages',
         formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest='command')
+
+    # --- send subcommand ---
+    send_p = sub.add_parser('send', help='Send an email')
+    send_p.add_argument('--to', required=True, help='Recipient email address')
+    send_p.add_argument('--subject', required=True, help='Email subject')
+    send_p.add_argument('--body', help='Email body (reads from stdin if omitted)')
+
+    # --- default: list/query (no subcommand) ---
     parser.add_argument('--from', '-f', dest='sender', help='Filter by sender')
     parser.add_argument('--count', '-c', type=int, default=20)
     parser.add_argument('--since', '-s', help='Emails since (e.g., 3d, 1w)')
     parser.add_argument('--unread', '-u', action='store_true')
-    parser.add_argument('--body', '-b', action='store_true', help='Include email body')
+    parser.add_argument('--body', '-b', dest='show_body', action='store_true', help='Include email body')
     parser.add_argument('--mark-read', '-r', action='store_true')
     parser.add_argument('--archive', '-a', action='store_true')
     args = parser.parse_args()
 
     service = get_gmail_service()
+
+    # Handle send subcommand
+    if args.command == 'send':
+        body = args.body if args.body else sys.stdin.read()
+        send_email(service, args.to, args.subject, body)
+        return
+
+    # List/query emails
     query_parts = []
     if args.sender:
         query_parts.append(f'from:{args.sender}')
@@ -79,7 +107,7 @@ def main():
 
     message_ids = [msg['id'] for msg in messages]
 
-    if (args.mark_read or args.archive) and not args.body:
+    if (args.mark_read or args.archive) and not args.show_body:
         for msg_ref in messages:
             try:
                 msg = service.users().messages().get(userId='me', id=msg_ref['id'], format='metadata', metadataHeaders=['Subject', 'From']).execute()
@@ -105,7 +133,7 @@ def main():
             unread_marker = '\u2022' if 'UNREAD' in labels else ' '
             print(f"{unread_marker} [{date_display}] {sender}")
             print(f"  Subject: {subject}")
-            if args.body:
+            if args.show_body:
                 body = get_body_text(msg.get('payload', {}))
                 if body:
                     body = ' '.join(body.strip()[:500].split())
